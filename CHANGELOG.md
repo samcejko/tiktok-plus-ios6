@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 (2026-10-17)
+
+- TikTok Account Login (Method A): sign in by dropping `ttsession.json` or `ttcookies.json` into the app's Documents directory via iTunes File Sharing, Filza, or iFile.
+- Personal Feeds: switch between your personal "For You" feed, "Following" feed, and the taste-based recommendation feed directly from the feed selector.
+- Profile & Activity: view your profile info, avatar, liked videos, and notifications list with direct navigation to interactions and videos.
+- TikTok Interactions (Experimental): opt-in write actions allowing you to like videos (double-tap or hold menu), follow creators from profile pages, and submit comments.
+- Safety & Privacy: sensitive authentication cookies stay strictly secured on the Pi helper and never touch the device; all write actions are guarded by human-pace delays and require explicit opt-in in Settings.
+
 ## 0.3.1 (2026-10-14)
 
 - Web links in texts are tappable: in a video's caption (next to its #hashtags and @mentions), in comments and
