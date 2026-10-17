@@ -117,7 +117,12 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
                 cell.imageView.image = [self placeholderAvatarOfSize:CGSizeMake(34, 34)];
                 NSString *thumb = [TKSession sharedSession].avatarURL;
                 if (thumb.length) {
-                    [[TKImageLoader shared] loadImageURL:[NSURL URLWithString:thumb] intoImageView:cell.imageView];
+                    [[TKImageLoader shared] loadImage:thumb maxPixels:100 completion:^(UIImage *img) {
+                        if (img) {
+                            cell.imageView.image = img;
+                            [cell setNeedsLayout];
+                        }
+                    }];
                 }
             } else if (r == 1) {
                 cell.textLabel.text = L(@"Notifications");

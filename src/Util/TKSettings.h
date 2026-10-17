@@ -56,6 +56,7 @@
 
 // Videos already shown (the feed does not bring them back; the taste itself lives in TKTaste)
 + (BOOL)hasSeenVideo:(NSString *)videoId;
++ (void)markVideoSeen:(NSString *)videoId;
 // Account actions (Phase 3 writes: like, follow, comment - experimental, off by default)
 + (BOOL)allowAccountWrites;
 + (void)setAllowAccountWrites:(BOOL)value;

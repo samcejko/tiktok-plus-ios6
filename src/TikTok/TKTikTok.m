@@ -360,15 +360,8 @@
     return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSDictionary *batchHeaders = TKDict(TKDict(json)[@"headers"]);
-        NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-        NSMutableArray *videos = [NSMutableArray array];
-        for (NSDictionary *item in TKArr(TKDict(json)[@"items"])) {
-            TKVideo *v = [TKVideo videoFromWebDict:item now:now];
-            if (v) {
-                if (batchHeaders.count && !v.playHeaders.count) v.playHeaders = batchHeaders;
-                [videos addObject:v];
-            }
-        }
+        NSArray *items = TKArr(TKDict(json)[@"items"]);
+        NSArray *videos = [TKVideo videosFromItems:items headers:batchHeaders];
         if (completion) completion(videos, nil);
     }];
 }
@@ -380,15 +373,8 @@
     return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSDictionary *batchHeaders = TKDict(TKDict(json)[@"headers"]);
-        NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-        NSMutableArray *videos = [NSMutableArray array];
-        for (NSDictionary *item in TKArr(TKDict(json)[@"items"])) {
-            TKVideo *v = [TKVideo videoFromWebDict:item now:now];
-            if (v) {
-                if (batchHeaders.count && !v.playHeaders.count) v.playHeaders = batchHeaders;
-                [videos addObject:v];
-            }
-        }
+        NSArray *items = TKArr(TKDict(json)[@"items"]);
+        NSArray *videos = [TKVideo videosFromItems:items headers:batchHeaders];
         if (completion) completion(videos, nil);
     }];
 }
@@ -400,15 +386,8 @@
     return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSDictionary *batchHeaders = TKDict(TKDict(json)[@"headers"]);
-        NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-        NSMutableArray *videos = [NSMutableArray array];
-        for (NSDictionary *item in TKArr(TKDict(json)[@"items"])) {
-            TKVideo *v = [TKVideo videoFromWebDict:item now:now];
-            if (v) {
-                if (batchHeaders.count && !v.playHeaders.count) v.playHeaders = batchHeaders;
-                [videos addObject:v];
-            }
-        }
+        NSArray *items = TKArr(TKDict(json)[@"items"]);
+        NSArray *videos = [TKVideo videosFromItems:items headers:batchHeaders];
         if (completion) completion(videos, nil);
     }];
 }

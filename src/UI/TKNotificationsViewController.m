@@ -1,7 +1,7 @@
 #import "TKNotificationsViewController.h"
 #import "TKTikTok.h"
-#import "TKProfileViewController.h"
-#import "TKFeedViewController.h"
+#import "TKHTTP.h"
+#import "TKLinkRouter.h"
 #import "TKImageLoader.h"
 #import "TKTheme.h"
 #import "TKUtils.h"
@@ -150,13 +150,13 @@
     if (videoId.length) {
         [TKTikTok resolveId:videoId author:handle completion:^(TKVideo *resolved, NSError *error) {
             if (resolved) {
-                [TKFeedViewController openVideos:@[resolved] startIndex:0 title:L(@"Video") loadMore:nil];
+                [TKLinkRouter openVideos:@[resolved] startIndex:0 title:L(@"Video") loadMore:nil];
             } else if (handle.length) {
-                [TKProfileViewController openUser:handle];
+                [TKLinkRouter openProfile:handle];
             }
         }];
     } else if (handle.length) {
-        [TKProfileViewController openUser:handle];
+        [TKLinkRouter openProfile:handle];
     }
 }
 
