@@ -1,0 +1,9 @@
+Package: com.samcejko.tikieplus
+Name: TikTak+
+Version: 0.4.0
+Architecture: iphoneos-arm
+Description: Unofficial TikTok client for iOS 6 with account sign-in, personal For You, following feed, notifications, own profile and interactions (likes/comments). Needs its helper on your own server.
+Maintainer: samcejko
+Author: samcejko
+Section: Multimedia
+Depends: firmware (>= 6.0), firmware (<< 11.0)

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TikTak icon "Nota": a white eighth note with cyan and pink offsets on a glossy black tile (evokes short video
+     with sound without copying any logo). 160-unit viewBox; gen_assets bakes the iOS rounding in; the gloss is ours. -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 160 160" width="1024" height="1024">
+  <defs>
+    <linearGradient id="n-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#33333a"/>
+      <stop offset="0.5" stop-color="#141417"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+    <radialGradient id="n-glow" cx="0.5" cy="0.56" r="0.46">
+      <stop offset="0" stop-color="#5b2470" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="n-white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d9dde3"/>
+    </linearGradient>
+    <linearGradient id="n-gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.36"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.03"/>
+    </linearGradient>
+    <g id="n-note">
+      <ellipse cx="62" cy="112" rx="20" ry="14" transform="rotate(-24 62 112)"/>
+      <rect x="72" y="30" width="11" height="84" rx="2"/>
+      <path d="M78 30 C 94 33, 115 46, 116 68 C 116.5 78, 111 87, 103 93 C 107 82, 105 71, 98 65 C 92 60, 86 58, 80 58 Z"/>
+    </g>
+  </defs>
+  <rect width="160" height="160" fill="url(#n-bg)"/>
+  <rect width="160" height="160" fill="url(#n-glow)"/>
+  <use xlink:href="#n-note" fill="#25f4ee" transform="translate(-4.5 -3.5)"/>
+  <use xlink:href="#n-note" fill="#fe2c55" transform="translate(4.5 3.5)"/>
+  <use xlink:href="#n-note" fill="url(#n-white)"/>
+  <path d="M0 0 H160 V62 C 118 82, 42 82, 0 62 Z" fill="url(#n-gloss)"/>
+</svg>

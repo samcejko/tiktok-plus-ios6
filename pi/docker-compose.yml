@@ -1,0 +1,11 @@
+# Tikie helper service. Put a key in TIKIE_KEY if you expose it past the LAN (e.g. through cloudflared).
+services:
+  tikie:
+    build: .
+    container_name: tikie
+    restart: unless-stopped
+    ports:
+      - "8730:8730"
+    environment:
+      - TIKIE_PORT=8730
+      # - TIKIE_KEY=change-me
