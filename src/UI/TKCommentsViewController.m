@@ -140,6 +140,7 @@ static UILabel *TKCommentSizingLabel(void)
 @property (nonatomic, copy) NSString *draftKey;
 @property (nonatomic, weak) UIAlertView *composeAlert;
 @property (nonatomic) BOOL sending;
+@property (nonatomic) NSUInteger generation;
 
 @end
 
@@ -209,6 +210,7 @@ static UILabel *TKCommentSizingLabel(void)
 - (void)load
 {
     [self.task cancel];
+    NSUInteger generation=++self.generation;
     self.comments = nil; [self.replies removeAllObjects]; [self.loadingReplies removeAllObjects];
     self.loading = YES;
     self.status = self.video ? L(@"Loading comments…") : @"";
@@ -216,7 +218,7 @@ static UILabel *TKCommentSizingLabel(void)
     if (!self.video.videoId.length) { self.loading=NO; [self.refreshControl endRefreshing]; return; }
     TKVideo *forVideo = self.video;
     self.task = [TKTikTok commentsForVideo:self.video.videoId count:50 completion:^(NSArray *comments, NSError *error) {
-        if (forVideo != self.video) return;      // (switched to another video meanwhile)
+        if (forVideo != self.video || generation!=self.generation) return;
         self.loading = NO; [self.refreshControl endRefreshing];
         self.comments = comments;
         if (error) self.status = error.localizedDescription;
@@ -248,9 +250,9 @@ static UILabel *TKCommentSizingLabel(void)
     if (!comment.commentId.length || [self.loadingReplies containsObject:comment.commentId]) return;
     [self.loadingReplies addObject:comment.commentId];
     [self.tableView reloadData];
-    TKVideo *forVideo = self.video;
+    TKVideo *forVideo = self.video; NSUInteger generation=self.generation;
     [TKTikTok repliesForVideo:self.video.videoId comment:comment.commentId count:20 completion:^(NSArray *replies, NSError *error) {
-        if (forVideo != self.video) return;
+        if (forVideo != self.video || generation!=self.generation) return;
         [self.loadingReplies removeObject:comment.commentId];
         if (replies) self.replies[comment.commentId] = replies;   // (an empty list: the row goes away)
         [self rebuildRows];
@@ -406,7 +408,7 @@ static UILabel *TKCommentSizingLabel(void)
     [TKTikTok likeComment:comment videoId:video.videoId on:on completion:^(BOOL ok,NSError *error){
         [self.pendingActions removeObject:comment.commentId];
         if(![token isEqualToString:[TKSession sharedSession].token] || video!=self.video)return;
-        if(ok) { comment.likeStateKnown=YES; comment.liked=on; comment.likes=MAX(0,comment.likes+(on?1:-1)); }
+        if(ok) { if(comment.likeStateKnown && comment.liked!=on)comment.likes=MAX(0,comment.likes+(on?1:-1)); comment.likeStateKnown=YES; comment.liked=on; }
         else [TKUtils alertWithTitle:L(@"Action not confirmed") message:error.localizedDescription];
         [self.tableView reloadData];
     }];
@@ -461,7 +463,7 @@ static UILabel *TKCommentSizingLabel(void)
         if(ok) [self.drafts removeObjectForKey:key];
         if(video!=self.video)return;
         if(ok) {
-            [self.task cancel]; self.loading=NO; [self.refreshControl endRefreshing];
+            [self.task cancel]; self.generation++; [self.loadingReplies removeAllObjects]; self.loading=NO; [self.refreshControl endRefreshing];
             TKComment *comment=[TKComment commentFromJSON:result];
             if(parent) { comment.isReply=YES; comment.parentCommentId=parent.parentCommentId ?: parent.commentId; TKComment *root=parent; for(TKComment *c in self.comments)if([c.commentId isEqualToString:comment.parentCommentId])root=c; NSMutableArray *r=[self.replies[comment.parentCommentId] mutableCopy] ?: [NSMutableArray array]; [r addObject:comment]; self.replies[comment.parentCommentId]=r; root.replyCount++; }
             else { NSMutableArray *top=[self.comments mutableCopy] ?: [NSMutableArray array]; [top insertObject:comment atIndex:0]; self.comments=top; }

@@ -645,7 +645,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
         [self.pendingLikes removeObject:key];
         if (![token isEqualToString:[TKSession sharedSession].token]) return;
         if (ok) {
-            BOOL changed=!video.likeStateKnown || video.liked!=on;
+            BOOL changed=video.likeStateKnown && video.liked!=on;
             video.likeStateKnown=YES; video.liked=on;
             if(changed)video.likes=MAX(0,video.likes+(on ? 1 : -1));
         }

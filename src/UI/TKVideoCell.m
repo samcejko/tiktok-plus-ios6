@@ -291,7 +291,7 @@ static FourCharCode TKFourCC(const char *s)
     CGFloat railX = b.size.width - 64;
     BOOL compact=b.size.height<420;
     CGFloat y = b.size.height - (compact ? 230 : 300);
-    self.discButton.hidden=compact; self.avatarButton.hidden=compact; self.liveBadge.hidden=compact || !self.video.authorLiveRoom.length;
+    self.discButton.hidden=compact || !self.video.musicId.length; self.avatarButton.hidden=compact || !self.video.authorAvatarURL.length; self.liveBadge.hidden=compact || !self.video.authorLiveRoom.length;
     self.likeButton.frame = CGRectMake(railX,y,48,48);
     self.likeCountLabel.frame = CGRectMake(railX-6,y+44,60,16);
     self.saveButton.frame = CGRectMake(railX, y+126, 48, 48);
