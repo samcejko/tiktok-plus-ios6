@@ -70,6 +70,8 @@ static FourCharCode TKFourCC(const char *s)
 @property (nonatomic) NSUInteger seekGeneration;
 @property (nonatomic) BOOL seekPending;
 @property (nonatomic) float playbackRate;
+@property (nonatomic) NSTimeInterval historySeconds;
+@property (nonatomic) BOOL historyRecorded;
 @property (nonatomic) BOOL active;
 @property (nonatomic) BOOL wantMuted;
 @property (nonatomic) BOOL usingServerProxy;
@@ -355,6 +357,8 @@ static FourCharCode TKFourCC(const char *s)
     [self tearDownPhotos];
     self.video = video;
     self.playbackRate = 1.0f;
+    self.historySeconds = 0;
+    self.historyRecorded = NO;
     self.usingServerProxy = [TKSettings streamThroughServer];
     self.errorLabel.hidden = YES;
     self.authorLabel.text = video.author.length ? [@"@" stringByAppendingString:video.author] : (video.authorName ?: @"");
@@ -604,12 +608,24 @@ static FourCharCode TKFourCC(const char *s)
     return w;
 }
 
+- (void)noteHistorySeconds:(NSTimeInterval)seconds
+{
+    if (!self.active || !self.playing || self.historyRecorded) return;
+    self.historySeconds += seconds;
+    if (self.historySeconds < 2.0) return;
+    self.historyRecorded = YES;
+    if ([self.delegate respondsToSelector:@selector(videoCellDidBeginWatching:)]) [self.delegate videoCellDidBeginWatching:self];
+}
+
 - (void)tick:(NSTimeInterval)seconds
 {
     if (isnan(seconds)) return;
     if (self.lastTickTime >= 0 && self.playing && !self.scrubbing) {
         double d = seconds - self.lastTickTime;
-        if (d > 0 && d < 1.5) self.watchedSeconds += d;        // a loop jumps back, a seek jumps far: neither counts
+        if (d > 0 && d < 1.5) {
+            self.watchedSeconds += d;        // a loop jumps back, a seek jumps far: neither counts
+            if (![self isPhotoPost] && self.playerLayer.readyForDisplay) [self noteHistorySeconds:d / MAX(0.5f, self.playbackRate)];
+        }
     }
     self.lastTickTime = seconds;
     if (seconds > self.playedSeconds) self.playedSeconds = seconds;
@@ -714,6 +730,7 @@ static FourCharCode TKFourCC(const char *s)
 
 - (void)setActive:(BOOL)active rewind:(BOOL)rewind
 {
+    if (active && !_active) { self.historySeconds = 0; self.historyRecorded = NO; }
     _active = active;
     if (active) {
         if ((self.player && self.playerLayer) || [self isPhotoPost]) [self resume];
@@ -777,12 +794,20 @@ static FourCharCode TKFourCC(const char *s)
 }
 
 - (BOOL)fastPlayback { return self.playbackRate > 1.01f; }
+- (float)selectedPlaybackSpeed { return self.playbackRate; }
 
 // (verified on the iPad 2: TikTok's MP4s report canPlayFastForward and really play at 2x)
 - (BOOL)setFastPlayback:(BOOL)fast
 {
-    if (fast && !(self.item.status == AVPlayerItemStatusReadyToPlay && self.item.canPlayFastForward)) return NO;
-    self.playbackRate = fast ? 2.0f : 1.0f;
+    return [self setPlaybackSpeed:fast ? 2.0f : 1.0f];
+}
+- (BOOL)setPlaybackSpeed:(float)speed
+{
+    if (!(speed == 0.5f || speed == 1.0f || speed == 1.5f || speed == 2.0f) || [self isPhotoPost]) return NO;
+    if (speed != 1.0f && self.item.status != AVPlayerItemStatusReadyToPlay) return NO;
+    if (speed > 1.0f && !self.item.canPlayFastForward) return NO;
+    if (speed < 1.0f && !self.item.canPlaySlowForward) return NO;
+    self.playbackRate = speed;
     if (self.playing) self.player.rate = self.playbackRate;
     return YES;
 }
@@ -1089,6 +1114,7 @@ static FourCharCode TKFourCC(const char *s)
 {
     if (!self.playing || !self.photoViews.count) return;      // (paused with a tap)
     self.watchedSeconds += 0.5;
+    if (((TKImageView *)self.photoViews[(NSUInteger)self.photoIndex]).image) [self noteHistorySeconds:0.5];
     if (self.photoPager.isDragging || self.photoPager.isDecelerating) return;   // (the viewer is turning the pages)
     if (!self.photoAnimating) [self snapPhotoPager];
     self.photoShownFor += 0.5;

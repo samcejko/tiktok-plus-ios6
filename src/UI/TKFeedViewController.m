@@ -26,11 +26,11 @@
 #import "TKModern.h"
 #import "TKCommon.h"
 
-enum { TKSheetMenu = 1, TKSheetVideo = 2 };
+enum { TKSheetMenu = 1, TKSheetVideo = 2, TKSheetSpeed = 3, TKSheetFeed = 4 };
 // The video's hold menu: what each of its buttons does (which buttons there are depends on the iOS and on what is
 // installed, so the sheet keeps a list of these in button order)
 enum { TKVideoMenuSpeed, TKVideoMenuNotInterested, TKVideoMenuLike, TKVideoMenuCopyLink, TKVideoMenuSafari, TKVideoMenuSurfari, TKVideoMenuShare, TKVideoMenuCaptions };
-enum { TKMenuMute, TKMenuSwitchFeed, TKMenuNotifications, TKMenuLiked, TKMenuProfile, TKMenuSaved, TKMenuLive, TKMenuTaste, TKMenuLink, TKMenuRefresh, TKMenuSettings };
+enum { TKMenuMute, TKMenuSwitchFeed, TKMenuNotifications, TKMenuLiked, TKMenuProfile, TKMenuSaved, TKMenuHistory, TKMenuLive, TKMenuTaste, TKMenuLink, TKMenuRefresh, TKMenuSettings };
 
 // Auto-advance without anyone touching the screen: the first few moves still teach (mildly), later ones are
 // probably an unattended iPad and teach nothing, and after a few more the feed stops moving on and just loops.
@@ -81,6 +81,9 @@ static const NSInteger TKAutoAdvancesMax = 5;
 @property (nonatomic, weak) UIActionSheet *videoMenu;     // that menu while it is up
 @property (nonatomic, strong) NSArray *videoMenuActions;  // NSNumber (TKVideoMenu…) per button of that menu
 @property (nonatomic) BOOL shareWhenMenuGone;             // "Share" chosen: the share sheet comes once the menu has gone
+@property (nonatomic) BOOL speedWhenMenuGone;
+@property (nonatomic) BOOL feedWhenMenuGone;
+@property (nonatomic, copy) NSString *menuVideoId;
 @property (nonatomic) NSInteger autoAdvanceStreak;        // moves on by itself since the viewer last did anything
 @property (nonatomic) BOOL autoAdvancing;                 // the page change under way is one of those
 @property (nonatomic) BOOL pageAnimating;                 // advance's scroll is under way
@@ -534,6 +537,10 @@ static const NSInteger TKAutoAdvancesMax = 5;
 }
 
 - (void)videoCellWasTouched:(TKVideoCell *)cell { [self viewerIsHere]; }
+- (void)videoCellDidBeginWatching:(TKVideoCell *)cell
+{
+    if (cell == [self currentCell] && self.visible && !self.pausedForLive) [TKSettings recordWatchedVideo:[cell.video toJSON]];
+}
 
 - (void)videoCellDidTapAuthor:(TKVideoCell *)cell
 {
@@ -664,12 +671,15 @@ static const NSInteger TKAutoAdvancesMax = 5;
     [self viewerIsHere];
     if (cell != [self cellAt:self.currentIndex] || !cell.video || self.videoMenu.visible) return;
     self.menuCell = cell;
+    self.menuVideoId = cell.video.videoId;
     UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     sheet.tag = TKSheetVideo;
     self.videoMenu = sheet;
     NSMutableArray *actions = [NSMutableArray array];
-    [sheet addButtonWithTitle:cell.fastPlayback ? L(@"Play at normal speed") : L(@"Play at 2× speed")];
-    [actions addObject:@(TKVideoMenuSpeed)];
+    if (!cell.video.isPhoto) {
+        [sheet addButtonWithTitle:[NSString stringWithFormat:L(@"Playback speed: %@×"), [NSString stringWithFormat:@"%g", cell.selectedPlaybackSpeed]]];
+        [actions addObject:@(TKVideoMenuSpeed)];
+    }
     if ([TKSession sharedSession].signedIn && [TKSettings allowAccountWrites]) {
         [sheet addButtonWithTitle:L(@"Like on TikTok")];
         [actions addObject:@(TKVideoMenuLike)];
@@ -697,6 +707,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
     self.videoMenuActions = actions;
     self.shareWhenMenuGone = NO;
+    self.speedWhenMenuGone = NO;
     if (TKIsPad()) [sheet showFromRect:CGRectMake(point.x - 1, point.y - 1, 2, 2) inView:cell animated:YES];
     else [sheet showInView:self.view];
 }
@@ -709,9 +720,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     NSURL *link = [NSURL URLWithString:[v shareURL]];
     switch ([self.videoMenuActions[(NSUInteger)index] integerValue]) {
         case TKVideoMenuSpeed: {
-            BOOL fast = !cell.fastPlayback;
-            if ([cell setFastPlayback:fast]) [cell showToast:fast ? L(@"2× speed") : L(@"Normal speed")];
-            else [cell showToast:L(@"This video cannot play faster.")];
+            self.speedWhenMenuGone = YES;
             break;
         }
         case TKVideoMenuLike:
@@ -758,10 +767,44 @@ static const NSInteger TKAutoAdvancesMax = 5;
 // The hold menu has gone: the share sheet it asked for (iOS 7 and newer) comes now
 - (void)actionSheet:(UIActionSheet *)sheet didDismissWithButtonIndex:(NSInteger)index
 {
+    if (sheet.tag == TKSheetMenu && self.feedWhenMenuGone) {
+        self.feedWhenMenuGone = NO;
+        [self chooseFeed]; return;
+    }
+    if (sheet.tag == TKSheetVideo && self.speedWhenMenuGone) {
+        self.speedWhenMenuGone = NO;
+        [self chooseSpeed]; return;
+    }
     if (sheet.tag != TKSheetVideo || !self.shareWhenMenuGone) return;
     self.shareWhenMenuGone = NO;
     TKVideoCell *cell = self.menuCell;
     if (cell.video) [TKExternalOpen presentShareSheetForURL:[NSURL URLWithString:[cell.video shareURL]] from:self anchor:[cell linkAnchorView]];
+}
+
+- (void)chooseSpeed
+{
+    TKVideoCell *cell = self.menuCell;
+    if (cell != [self currentCell] || ![cell.video.videoId isEqual:self.menuVideoId] || !self.visible) return;
+    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Playback speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    sheet.tag = TKSheetSpeed;
+    for (NSNumber *speed in @[@0.5, @1, @1.5, @2]) {
+        NSString *label = [NSString stringWithFormat:@"%g×%@", speed.floatValue, fabsf(speed.floatValue - cell.selectedPlaybackSpeed) < 0.01f ? @" ✓" : @""];
+        [sheet addButtonWithTitle:label];
+    }
+    sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
+    if (TKIsPad()) [sheet showFromRect:CGRectMake(cell.bounds.size.width / 2, cell.bounds.size.height / 2, 1, 1) inView:cell animated:YES];
+    else [sheet showInView:self.view];
+}
+
+- (void)chooseFeed
+{
+    if (self.fixedMode || ![TKSession sharedSession].signedIn) return;
+    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Choose feed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    sheet.tag = TKSheetFeed;
+    NSArray *names = @[L(@"Explore"), L(@"For You"), L(@"Following")];
+    for (NSUInteger i = 0; i < names.count; i++) [sheet addButtonWithTitle:[names[i] stringByAppendingString:(NSInteger)i == self.feedMode ? @" ✓" : @""]];
+    sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
+    [sheet showInView:self.view];
 }
 
 #pragma mark - Menu
@@ -771,13 +814,14 @@ static const NSInteger TKAutoAdvancesMax = 5;
     if (self.fixedMode) { [self toggleMute]; return; }
     UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     sheet.tag = TKSheetMenu;
+    self.feedWhenMenuGone = NO;
     NSMutableArray *actions = [NSMutableArray array];
 
     [sheet addButtonWithTitle:self.muted ? L(@"Unmute") : L(@"Mute")];
     [actions addObject:@(TKMenuMute)];
 
     if ([TKSession sharedSession].signedIn) {
-        [sheet addButtonWithTitle:self.feedMode == 0 ? L(@"Feed: For You") : (self.feedMode == 1 ? L(@"Feed: Following") : L(@"Feed: Explore"))];
+        [sheet addButtonWithTitle:[NSString stringWithFormat:L(@"Feed: %@"), [self currentFeedTitle]]];
         [actions addObject:@(TKMenuSwitchFeed)];
 
         [sheet addButtonWithTitle:L(@"Liked videos")];
@@ -789,6 +833,9 @@ static const NSInteger TKAutoAdvancesMax = 5;
 
     [sheet addButtonWithTitle:L(@"Saved")];
     [actions addObject:@(TKMenuSaved)];
+
+    [sheet addButtonWithTitle:L(@"Watch history")];
+    [actions addObject:@(TKMenuHistory)];
 
     [sheet addButtonWithTitle:L(@"Live now")];
     [actions addObject:@(TKMenuLive)];
@@ -813,6 +860,26 @@ static const NSInteger TKAutoAdvancesMax = 5;
 - (void)actionSheet:(UIActionSheet *)sheet clickedButtonAtIndex:(NSInteger)index
 {
     if (index < 0 || index == sheet.cancelButtonIndex) return;
+    if (sheet.tag == TKSheetSpeed) {
+        if (index > 3 || self.menuCell != [self currentCell] || ![self.menuCell.video.videoId isEqual:self.menuVideoId]) return;
+        float speed = [@[@0.5, @1, @1.5, @2][(NSUInteger)index] floatValue];
+        if ([self.menuCell setPlaybackSpeed:speed]) [self.menuCell showToast:[NSString stringWithFormat:@"%g×", speed]];
+        else [self.menuCell showToast:L(@"This playback speed is unavailable for this post.")];
+        return;
+    }
+    if (sheet.tag == TKSheetFeed) {
+        if (index > 2 || ![TKSession sharedSession].signedIn || self.fixedMode || self.feedMode == index) return;
+        [self closeComments];
+        [self removeAllCells];
+        self.feedMode = index;
+        self.currentIndex = 0;
+        self.feed = index == 0 ? (id)[[TKFeed alloc] init] : [[TKPersonalFeed alloc] initWithFollowingMode:index == 2];
+        self.titleLabel.text = [self currentFeedTitle];
+        self.scroll.contentOffset = CGPointZero;
+        [self.view setNeedsLayout];
+        [self loadFeed];
+        return;
+    }
     if (sheet.tag == TKSheetVideo) { [self videoMenuChose:index]; return; }
     if (sheet.tag == TKSheetMenu) {
         if (index >= (NSInteger)self.menuActions.count) return;
@@ -820,11 +887,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
         switch (action) {
             case TKMenuMute: [self toggleMute]; break;
             case TKMenuSwitchFeed: {
-                self.feedMode = (self.feedMode + 1) % 3;
-                [self removeAllCells];
-                self.titleLabel.text = self.title ?: [self currentFeedTitle];
-                self.feed = self.feedMode == 0 ? (id)[[TKFeed alloc] init] : [[TKPersonalFeed alloc] initWithFollowingMode:self.feedMode == 2];
-                [self loadFeed];
+                self.feedWhenMenuGone = YES;
                 break;
             }
             case TKMenuNotifications:
@@ -839,6 +902,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
                 }
                 break;
             case TKMenuSaved: [self openSaved]; break;
+            case TKMenuHistory: [self present:[[TKSavedViewController alloc] initWithHistory:YES]]; break;
             case TKMenuLive: [self present:[[TKLivesViewController alloc] init]]; break;
             case TKMenuTaste: [self present:[[TKTasteViewController alloc] init]]; break;
             case TKMenuLink: [self askForLink]; break;
@@ -892,7 +956,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     TKVideoCell *cell=[self currentCell];
     return @{@"playback":[cell playbackDiagnostics] ?: @{},@"count":@([self count]),@"index":@(self.currentIndex),@"mode":@(self.feedMode),@"loading":@(self.feed.loading),
         @"videoId":cell.video.videoId ?: @"",@"time":@(isfinite(cell.currentTime)?cell.currentTime:0),@"duration":@(isfinite(cell.duration)?cell.duration:0),
-        @"playing":@(cell.playing),@"rate":@([cell playerRate]),@"photo":@(cell.video.isPhoto),@"visible":@(self.visible),@"error":self.messageLabel.hidden ? @"" : (self.messageLabel.text ?: @"")};
+        @"playing":@(cell.playing),@"rate":@([cell playerRate]),@"selectedSpeed":@(cell.selectedPlaybackSpeed),@"savedCurrent":@([TKSettings isSaved:cell.video.videoId]),@"photo":@(cell.video.isPhoto),@"visible":@(self.visible),@"error":self.messageLabel.hidden ? @"" : (self.messageLabel.text ?: @"")};
 }
 
 @end

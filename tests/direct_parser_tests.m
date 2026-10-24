@@ -2,6 +2,7 @@
 #import "TKDirectParser.h"
 #import "TKWebSignature.h"
 #import "TKCommon.h"
+#import "../src/Util/TKVideoLibrary.h"
 #include <stdio.h>
 
 static unsigned checks, failures;
@@ -72,7 +73,29 @@ int TKRunDirectParserTests(void)
         check([TKWebSignature(@"aid=1988&keyword=cats",@"fixture-browser",1700000000) isEqual:@"DFSzswVY4mTAN9rntmWx-e9WX7jJ"],"signature ASCII vector");
         check([TKWebSignature(@"aid=1988&keyword=%C4%8Desk%C3%BD%20pes",@"fixture-browser",1700000000) isEqual:@"DFSzswVYfjiAN9rntmWx-e9WX7nQ"],"signature Unicode query vector");
         check([TKWebSignature(@"",@"fixture-browser",1700000000) isEqual:@"DFSzswVY0IJAN9rntmWx-e9WX7nR"],"signature empty query vector");
-        fprintf(stdout,"Direct parser: %u checks, %u failures\n",checks,failures);
+        NSDictionary *first = @{@"id":@"123", @"author":@"Fixture", @"desc":@"Český příspěvek", @"music":@"Test Song", @"tags":@[@"Kočka"], @"playUrl":@"https://expired.invalid/video", @"sessionid":@"must-not-persist", @"watchedAt":@123};
+        NSArray *library = [TKVideoLibrary addingVideo:first toList:@[] limit:200];
+        check(library.count == 1, "first history entry is added");
+        check(!library[0][@"playUrl"] && !library[0][@"sessionid"], "library keeps no playback URLs or session fields");
+        check([library[0][@"watchedAt"] isEqual:@123], "viewing timestamp retained");
+        library = [TKVideoLibrary addingVideo:@{@"id":@"456", @"author":@"Other"} toList:library limit:200];
+        check([library[0][@"id"] isEqual:@"456"], "newest history entry is first");
+        library = [TKVideoLibrary addingVideo:first toList:library limit:200];
+        check(library.count == 2 && [library[0][@"id"] isEqual:@"123"], "revisit moves existing entry without duplicate");
+        check([TKVideoLibrary videos:library matching:@"cesky"].count == 1, "library caption search ignores diacritics");
+        check([TKVideoLibrary videos:library matching:@"@FIXTURE"].count == 1, "library author search ignores case");
+        check([TKVideoLibrary videos:library matching:@"song"].count == 1, "library sound search");
+        check([TKVideoLibrary videos:library matching:@"kocka"].count == 1, "library hashtag search");
+        check([TKVideoLibrary videos:library matching:@"missing"].count == 0, "library no match stays empty");
+        check([TKVideoLibrary videos:library matching:@"  \n"].count == 2, "blank query keeps all posts");
+        check([TKVideoLibrary addingVideo:nil toList:@[[NSNull null], @{}, first, first] limit:200].count == 1, "corrupt and duplicate library records removed");
+        check(![TKVideoLibrary metadata:@{@"id":@"../bad"}], "invalid library ID rejected");
+        check([TKVideoLibrary addingVideo:first toList:library limit:0].count == 0, "zero library limit respected");
+        NSMutableArray *many = [NSMutableArray array];
+        for (NSUInteger i=0;i<250;i++) [many addObject:@{@"id":[NSString stringWithFormat:@"%lu",(unsigned long)i]}];
+        check([TKVideoLibrary addingVideo:first toList:many limit:200].count == 200, "history limit bounds storage");
+        check([TKVideoLibrary videos:@[[NSNull null],first] matching:@"fixture"].count == 1, "malformed filtered record ignored");
+        fprintf(stdout,"Direct parser and library: %u checks, %u failures\n",checks,failures);
     }
     return failures ? 1 : 0;
 }

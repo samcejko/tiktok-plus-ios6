@@ -303,3 +303,19 @@
 "The verified account and profile do not match. Export fresh TikTok cookies." = "Ověřený účet a profil se neshodují. Exportuj nové cookies TikToku.";
 
 "Open in browser" = "Otevřít v prohlížeči";
+
+// Local library and player controls
+"Watch history" = "Historie sledování";
+"Search author, caption or sound" = "Hledat autora, popisek nebo zvuk";
+"Clear watch history" = "Vymazat historii sledování";
+"Remove local viewing history? Saved videos and your TikTok account stay unchanged." = "Vymazat místní historii sledování? Uložená videa i účet TikToku zůstanou zachované.";
+"The last 200 watched posts are kept only on this device." = "Posledních 200 zhlédnutých příspěvků se uchovává pouze v tomto zařízení.";
+"No matching posts." = "Žádné odpovídající příspěvky.";
+"Posts appear here after you watch them. History stays on this device." = "Příspěvky se zde objeví po zhlédnutí. Historie zůstává v tomto zařízení.";
+"Playback speed: %@×" = "Rychlost přehrávání: %@×";
+"Playback speed" = "Rychlost přehrávání";
+"Choose feed" = "Vybrat feed";
+"Feed: %@" = "Feed: %@";
+"This playback speed is unavailable for this post." = "Tato rychlost přehrávání není pro příspěvek dostupná.";
+"Record watch history" = "Ukládat historii sledování";
+"Watch history is stored locally. You can search, delete individual posts or clear it from the menu." = "Historie sledování se ukládá místně. V nabídce ji můžeš prohledat, smazat jednotlivé příspěvky nebo vymazat celou.";

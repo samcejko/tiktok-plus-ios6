@@ -1,6 +1,7 @@
 #import "TKSettings.h"
 #import "TKKeychain.h"
 #import "TKCommon.h"
+#import "TKVideoLibrary.h"
 
 #define DEF [NSUserDefaults standardUserDefaults]
 static NSString * const TKServerKeyName = @"tikie.serverKey";
@@ -24,6 +25,8 @@ static const NSUInteger TKMaxSeen = 4000;
         @"hiddenLanguages": @[],
         @"savedVideos": @[],
         @"seenVideos": @[],
+        @"watchHistory": @[],
+        @"recordWatchHistory": @YES,
         @"allowAccountWrites": @NO,
     }];
 }
@@ -131,7 +134,7 @@ static const NSUInteger TKMaxSeen = 4000;
 
 #pragma mark - Saved
 
-+ (NSArray *)savedVideos { return [DEF arrayForKey:@"savedVideos"] ?: @[]; }
++ (NSArray *)savedVideos { return [TKVideoLibrary addingVideo:nil toList:[DEF arrayForKey:@"savedVideos"] limit:TKMaxSaved]; }
 
 + (BOOL)isSaved:(NSString *)videoId
 {
@@ -163,6 +166,25 @@ static const NSUInteger TKMaxSeen = 4000;
 }
 
 #pragma mark - Seen videos
+
++ (BOOL)recordWatchHistory { return [DEF boolForKey:@"recordWatchHistory"]; }
++ (void)setRecordWatchHistory:(BOOL)value { [DEF setBool:value forKey:@"recordWatchHistory"]; [self save]; [self notify]; }
++ (NSArray *)watchHistory { return [TKVideoLibrary addingVideo:nil toList:[DEF arrayForKey:@"watchHistory"] limit:200]; }
++ (void)recordWatchedVideo:(NSDictionary *)json
+{
+    if (![self recordWatchHistory] || ![TKVideoLibrary metadata:json]) return;
+    NSMutableDictionary *entry = [json mutableCopy];
+    entry[@"watchedAt"] = @([[NSDate date] timeIntervalSince1970]);
+    [DEF setObject:[TKVideoLibrary addingVideo:entry toList:[self watchHistory] limit:200] forKey:@"watchHistory"];
+    [self save]; [self notifyLibrary];
+}
++ (void)removeFromWatchHistory:(NSString *)videoId
+{
+    NSMutableArray *list = [[self watchHistory] mutableCopy];
+    for (NSInteger i = (NSInteger)list.count - 1; i >= 0; i--) if ([list[(NSUInteger)i][@"id"] isEqual:videoId]) [list removeObjectAtIndex:(NSUInteger)i];
+    [DEF setObject:list forKey:@"watchHistory"]; [self save]; [self notifyLibrary];
+}
++ (void)clearWatchHistory { [DEF setObject:@[] forKey:@"watchHistory"]; [self save]; [self notifyLibrary]; }
 
 + (BOOL)hasSeenVideo:(NSString *)videoId
 {

@@ -208,7 +208,7 @@ jobs:
           fi
           mkdir -p packages
           mkdir -p /tmp/tiktak-parser-objects
-          for source in tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKWebSignature.m src/TKCommon.m; do
+          for source in tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKWebSignature.m src/Util/TKVideoLibrary.m src/TKCommon.m; do
             clang -target "$TARGET" -isysroot "$SDK" -fobjc-arc -fblocks -Os \
               -Isrc -Isrc/TikTok -c "$source" -o "/tmp/tiktak-parser-objects/$(basename "$source").o"
           done

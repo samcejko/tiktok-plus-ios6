@@ -10,6 +10,7 @@
 - (void)videoCellDidDoubleTap:(TKVideoCell *)cell;       // double tap = save (the cell shows the star burst itself)
 - (void)videoCell:(TKVideoCell *)cell didLongPressAt:(CGPoint)point;   // hold = the video's menu
 @optional
+- (void)videoCellDidBeginWatching:(TKVideoCell *)cell; // actual visible playback, never prefetching
 - (void)videoCellWasTouched:(TKVideoCell *)cell;        // pause/play or seeking: someone is watching
 - (void)videoCellDidTapAuthor:(TKVideoCell *)cell;      // the name, the avatar or a swipe to the left: the profile
 - (void)videoCellDidTapLive:(TKVideoCell *)cell;        // the avatar while the creator is live: their stream
@@ -29,6 +30,7 @@
 @property (nonatomic, readonly) NSTimeInterval duration;        // the item's length, else the video's listed one
 @property (nonatomic, readonly) NSTimeInterval currentTime;     // the player's position
 @property (nonatomic, readonly) BOOL fastPlayback;
+@property (nonatomic, readonly) float selectedPlaybackSpeed;
 
 - (void)showVideo:(TKVideo *)video;         // labels + cover; no network yet
 - (void)preparePlayback;                    // off screen: buffers the start (no picture yet) so the swipe starts at once
@@ -40,6 +42,7 @@
 @property (nonatomic, readonly) BOOL hasCaptions;     // TikTok made captions for this video
 - (void)captionsSettingChanged;
 - (BOOL)setFastPlayback:(BOOL)fast;         // 2x speed; NO when this video cannot play faster
+- (BOOL)setPlaybackSpeed:(float)speed;     // 0.5, 1, 1.5 or 2; rejects unsupported media
 - (NSTimeInterval)takeWatchedSeconds;       // real viewing time since the last call (loops add up, seeks do not)
 - (void)updateSavedState:(BOOL)saved;
 - (void)showError:(NSString *)message;

@@ -10,6 +10,8 @@ This supersedes the old helper-only proposal. The default app connects to TikTok
 - Only explicit H.264 renditions are selected. HEVC-only content is not presented as playable on the legacy build. JPEG alternatives are preferred for photos and covers.
 - AVPlayer uses the existing loopback media proxy for modern TLS and FLV-to-HLS remuxing. That proxy runs inside the app; it is not a server helper.
 - Saved posts, search history, topic/language preferences and the Explore recommender stay local. Saved posts are resolved again before playback; expiring video URLs are not treated as permanent downloads.
+- Viewing history keeps at most 200 unique posts, newest first, after two seconds of actual visible playback. Prefetching and seeking alone do not create a history entry. Only metadata is stored; playback URLs and unknown/session fields are excluded. History can be disabled, cleared or individually removed independently of saved posts and feed deduplication. Saved/history filtering ignores case and diacritics.
+- Video playback speed can be selected from 0.5×, 1×, 1.5× and 2×. Unsupported device/media speeds are rejected with a message; photo slideshows retain their timing. Seek, loop and pause/resume retain the current video's selected speed.
 - Explore remains a distinct, always-accessible feed after sign-in. For You and Following never silently substitute Explore.
 
 ## Account identity and secrets

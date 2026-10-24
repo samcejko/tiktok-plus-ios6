@@ -54,6 +54,14 @@
 + (void)saveVideoJSON:(NSDictionary *)json;
 + (void)unsaveVideo:(NSString *)videoId;
 
+// Local viewing history; independent of TikTok account history and feed deduplication.
++ (BOOL)recordWatchHistory;
++ (void)setRecordWatchHistory:(BOOL)value;
++ (NSArray *)watchHistory;
++ (void)recordWatchedVideo:(NSDictionary *)json;
++ (void)removeFromWatchHistory:(NSString *)videoId;
++ (void)clearWatchHistory;
+
 // Videos already shown (the feed does not bring them back; the taste itself lives in TKTaste)
 + (BOOL)hasSeenVideo:(NSString *)videoId;
 + (void)markVideoSeen:(NSString *)videoId;

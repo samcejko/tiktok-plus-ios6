@@ -126,6 +126,29 @@ static BOOL TKPressView(UIView *v, NSString *text)
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[TKUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
     UIViewController *top = [self topController];
+    if ([target isEqualToString:@"accountcheck"]) {
+        NSString *expectedId = [TKSession sharedSession].userId;
+        NSString *expectedHandle = [TKSession sharedSession].handle;
+        [TKTikTok sessionValidateWithCompletion:^(BOOL valid, NSDictionary *user, NSError *error) {
+            BOOL same = valid && expectedId.length && [expectedId isEqual:TKStr(user[@"userId"])] && [expectedHandle caseInsensitiveCompare:TKStr(user[@"handle"]) ?: @""] == NSOrderedSame;
+            NSDictionary *result = @{@"valid":@(valid), @"matchesStoredAccount":@(same), @"errorCode":@(error.code)};
+            [[TKUtils JSONDataFromObject:result] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tiktak-accountcheck.json"] atomically:YES];
+        }];
+        return YES;
+    }
+    if ([target isEqualToString:@"filter"]) {
+        NSMutableArray *views = [NSMutableArray arrayWithObject:top.view];
+        for (NSUInteger i = 0; i < views.count; i++) {
+            UIView *v = views[i];
+            [views addObjectsFromArray:v.subviews];
+            if (![v isKindOfClass:[UISearchBar class]]) continue;
+            UISearchBar *bar = (UISearchBar *)v;
+            bar.text = params[@"q"] ?: @"";
+            if ([bar.delegate respondsToSelector:@selector(searchBar:textDidChange:)]) [bar.delegate searchBar:bar textDidChange:bar.text];
+            break;
+        }
+        return YES;
+    }
     if ([target isEqualToString:@"selftest"]) {
         extern int TKRunDirectParserTests(void);
         int failures=TKRunDirectParserTests();
@@ -143,6 +166,8 @@ static BOOL TKPressView(UIView *v, NSString *text)
         state[@"controller"]=NSStringFromClass([top class]);
         state[@"signedIn"]=@([TKSession sharedSession].signedIn);
         state[@"version"]=[TKUtils appVersion];
+        state[@"historyCount"]=@([TKSettings watchHistory].count);
+        state[@"savedCount"]=@([TKSettings savedVideos].count);
         if ([top isKindOfClass:[TKFeedViewController class]]) [state addEntriesFromDictionary:[(TKFeedViewController *)top diagnosticState]];
         if ([top isKindOfClass:[TKGridViewController class]]) { TKGridViewController *grid=(TKGridViewController *)top;state[@"gridCount"]=@(grid.videos.count);state[@"loading"]=@(grid.loading); }
         if ([top isKindOfClass:[UITableViewController class]]) { UITableView *table=[(UITableViewController *)top tableView];NSInteger rows=0;for(NSInteger i=0;i<table.numberOfSections;i++)rows+=[table numberOfRowsInSection:i];state[@"rows"]=@(rows);state[@"sections"]=@(table.numberOfSections); }

@@ -49,7 +49,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         case SecFeed: return 3;
         case SecPlayback: return 3;
         case SecAppearance: return 1;
-        case SecData: return 2;
+        case SecData: return 3;
         case SecAbout: return 2;
     }
     return 0;
@@ -80,6 +80,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         }
     }
     if (s == SecAbout) return L(@"TikTak+ is an unofficial viewer and client for TikTok. Supports optional sign-in via session file import. Not affiliated with TikTok or ByteDance.");
+    if (s == SecData) return L(@"Watch history is stored locally. You can search, delete individual posts or clear it from the menu.");
     return nil;
 }
 
@@ -149,8 +150,9 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
     } else if (s == SecAppearance) {
         cell.textLabel.text = L(@"Dark theme"); cell.accessoryView = [self switchOn:[TKTheme shared].isDark tag:30]; cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (s == SecData) {
-        cell.textLabel.text = r == 0 ? L(@"Clear image cache") : L(@"Clear saved videos");
+        cell.textLabel.text = r == 0 ? L(@"Clear image cache") : (r == 1 ? L(@"Clear saved videos") : L(@"Record watch history"));
         if (r == 1) cell.textLabel.textColor = [UIColor colorWithRed:0.8 green:0.2 blue:0.2 alpha:1];
+        if (r == 2) { cell.accessoryView = [self switchOn:[TKSettings recordWatchHistory] tag:23]; cell.selectionStyle = UITableViewCellSelectionStyleNone; }
     } else if (s == SecAbout && r == 0) {
         cell.textLabel.text = L(@"Version"); cell.detailTextLabel.text = [TKUtils appVersion]; cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (s == SecAbout) {
@@ -166,6 +168,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         case 20: [TKSettings setStartMuted:sw.on]; break;
         case 21: [TKSettings setAutoAdvance:sw.on]; break;
         case 22: [TKSettings setShowCaptions:sw.on]; break;
+        case 23: [TKSettings setRecordWatchHistory:sw.on]; break;
         case 30: [[TKTheme shared] setDark:sw.on]; break;
         case 40: [TKSettings setVerifyTLS:sw.on]; [TKSettings save]; break;
         case 50: {
