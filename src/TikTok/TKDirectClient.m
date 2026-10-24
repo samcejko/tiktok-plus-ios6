@@ -9,7 +9,7 @@
 #import "TKCommon.h"
 
 static NSString * const TKDirectKey = @"direct.session.v1";
-static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
 
 @interface TKDirectClient ()
 @property (nonatomic, strong) NSMutableArray *anonymousCookies;
@@ -80,17 +80,29 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
         if (!c.expiresDate || [c.expiresDate timeIntervalSinceNow]>0) [jar addObject:c];
     }
 }
++ (void)mergeResponseToken:(NSDictionary *)headers URL:(NSURL *)url jar:(NSMutableArray *)jar
+{
+    NSString *token=TKStr(headers[@"x-ms-token"]);
+    if(![self tiktokHost:url.host] || ![url.scheme.lowercaseString isEqualToString:@"https"] || !token.length || token.length>4096 || [token rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-=+"] invertedSet]].location!=NSNotFound)return;
+    for(NSInteger i=(NSInteger)jar.count-1;i>=0;i--)if([[(NSHTTPCookie *)jar[(NSUInteger)i] name] isEqualToString:@"msToken"])[jar removeObjectAtIndex:(NSUInteger)i];
+    NSHTTPCookie *cookie=[NSHTTPCookie cookieWithProperties:@{NSHTTPCookieName:@"msToken",NSHTTPCookieValue:token,NSHTTPCookieDomain:url.host,NSHTTPCookiePath:@"/",NSHTTPCookieSecure:@"TRUE",NSHTTPCookieExpires:[NSDate dateWithTimeIntervalSinceNow:3600]}];if(cookie)[jar addObject:cookie];
+}
 + (TKHTTPTask *)requestURL:(NSString *)url jar:(NSMutableArray *)jar completion:(void (^)(id, NSDictionary *, NSError *))completion
+{
+    return [self requestURL:url jar:jar extraHeaders:nil completion:completion];
+}
++ (TKHTTPTask *)requestURL:(NSString *)url jar:(NSMutableArray *)jar extraHeaders:(NSDictionary *)extraHeaders completion:(void (^)(id, NSDictionary *, NSError *))completion
 {
     NSURL *u = [NSURL URLWithString:url];
     if (![self tiktokHost:u.host] || ![u.scheme.lowercaseString isEqualToString:@"https"]) {
         TKHTTPTask *t=[[TKHTTPTask alloc] init]; dispatch_async(dispatch_get_main_queue(), ^{ if (!t.isCancelled) completion(nil,nil,[self unavailable]); }); return t;
     }
     NSMutableDictionary *h=[@{@"User-Agent":TKWebUA, @"Referer":@"https://www.tiktok.com/", @"Accept-Language":@"en-US,en;q=0.9"} mutableCopy];
+    [h addEntriesFromDictionary:extraHeaders ?: @{}];
     NSString *cookie=[self cookieHeader:jar URL:u]; if (cookie.length) h[@"Cookie"]=cookie;
     return [TKHTTP request:@"GET" url:url headers:h body:nil retries:0 completion:^(NSInteger status, NSData *body, NSDictionary *headers, NSError *error) {
         NSURL *final = [NSURL URLWithString:TKStr(headers[@"tk-final-url"]) ?: url];
-        if (!error) [self mergeCookies:TKArr(headers[@"tk-set-cookie"]) URL:final jar:jar];
+        if (!error) { [self mergeCookies:TKArr(headers[@"tk-set-cookie"]) URL:final jar:jar]; [self mergeResponseToken:headers URL:final jar:jar]; }
         if (error || status < 200 || status >= 300 || ![self tiktokHost:final.host]) { completion(nil,headers,error ?: TKMakeError(status,[self unavailable].localizedDescription)); return; }
         if (!body.length || body.length > 12*1024*1024) { completion(nil,headers,[self unavailable]); return; }
         id json=[TKUtils JSONObjectFromData:body];
@@ -170,17 +182,18 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
                 finish(nil,pageError ?: TKMakeError(TKErrorAPI,L(@"TikTok did not provide the account action token. Open TikTok in your browser and refresh the session."))); return;
             }
             NSMutableDictionary *q=[NSMutableDictionary dictionary]; [self addDeviceParameters:q context:ctx jar:jar]; [q addEntriesFromDictionary:spec[@"params"]];
-            NSString *encoded=[self query:q]; NSString *gnarly=TKGnarlySignature(encoded,@"",TKWebUA);
+            NSString *encoded=[self query:q]; NSDictionary *signatures=TKModernWebSignatures(encoded,@"",TKWebUA); NSString *gnarly=signatures[@"X-Gnarly"];
             if(!gnarly.length) { finish(nil,[self unavailable]); return; }
             encoded=[encoded stringByAppendingFormat:@"&X-Bogus=%@",[TKUtils urlEncode:TKWebSignature(encoded,TKWebUA,(uint32_t)[[NSDate date] timeIntervalSince1970])]];
             encoded=[encoded stringByAppendingFormat:@"&X-Gnarly=%@",[TKUtils urlEncode:gnarly]];
             NSString *url=[NSString stringWithFormat:@"https://www.tiktok.com%@?%@",spec[@"path"],encoded];
-            NSDictionary *h=@{@"User-Agent":TKWebUA,@"Referer":@"https://www.tiktok.com/",@"Origin":@"https://www.tiktok.com",@"Accept":@"application/json",@"Content-Type":@"application/x-www-form-urlencoded",@"tt-csrf-token":csrf,@"Cookie":[self cookieHeader:jar URL:[NSURL URLWithString:url]]};
+            NSMutableDictionary *h=[@{@"User-Agent":TKWebUA,@"Referer":@"https://www.tiktok.com/",@"Origin":@"https://www.tiktok.com",@"Accept":@"application/json",@"Content-Type":@"application/x-www-form-urlencoded",@"tt-csrf-token":csrf,@"Cookie":[self cookieHeader:jar URL:[NSURL URLWithString:url]]} mutableCopy]; [h addEntriesFromDictionary:signatures];
             part=[TKHTTP request:@"POST" url:url headers:h body:[NSData data] retries:0 completion:^(NSInteger status,NSData *body,NSDictionary *responseHeaders,NSError *writeError){
                 if (outer.isCancelled) return;
+                if(!writeError && sameSession()) { [self mergeCookies:TKArr(responseHeaders[@"tk-set-cookie"]) URL:[NSURL URLWithString:url] jar:c.accountCookies]; [self mergeResponseToken:responseHeaders URL:[NSURL URLWithString:url] jar:c.accountCookies]; }
                 NSDictionary *response=TKDict([TKUtils JSONObjectFromData:body]);
                 BOOL accepted=!writeError && status==200 && [TKAccountAction accepted:response request:spec userId:uid];
-                if(sameSession())c.lastAction=@{@"action":action,@"httpStatus":@(status),@"errorCode":@(writeError.code),@"statusCode":@([response[@"status_code"] isKindOfClass:[NSNumber class]] ? TKInt(response[@"status_code"]) : -1),@"confirmed":@(accepted),@"bodyBytes":@(body.length),@"jsonResponse":@(response!=nil),@"newSignature":@YES};
+                if(sameSession())c.lastAction=@{@"action":action,@"httpStatus":@(status),@"errorCode":@(writeError.code),@"statusCode":@([response[@"status_code"] isKindOfClass:[NSNumber class]] ? TKInt(response[@"status_code"]) : -1),@"confirmed":@(accepted),@"bodyBytes":@(body.length),@"jsonResponse":@(response!=nil),@"newSignature":@YES,@"signatureVersion":@"5.3.2",@"tokenRenewed":@(TKStr(responseHeaders[@"x-ms-token"]).length>0),@"responseHeaderNames":[responseHeaders.allKeys sortedArrayUsingSelector:@selector(compare:)],@"challengeRequired":@(TKStr(responseHeaders[@"x-vc-bdturing-parameters"]).length>0 || TKStr(responseHeaders[@"x-tt-verify-id"]).length>0)};
                 if (!accepted) {
                     finish(nil,TKMakeError(TKErrorAPI,L(@"TikTok did not confirm this action. Refresh before trying again; it may already have been received."))); return;
                 }
@@ -204,13 +217,13 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
         [self addDeviceParameters:q context:ctx jar:jar]; q[@"from_page"]=from;
         [q addEntriesFromDictionary:params ?: @{}];
     }
-    NSString *encoded=[self query:q];
+    NSString *encoded=[self query:q]; NSDictionary *signatureHeaders=nil;
     if (signedAPI) {
-        NSString *gnarly=TKGnarlySignature(encoded,@"",TKWebUA);
+        signatureHeaders=TKModernWebSignatures(encoded,@"",TKWebUA); NSString *gnarly=signatureHeaders[@"X-Gnarly"];
         encoded=[encoded stringByAppendingFormat:@"&X-Bogus=%@",[TKUtils urlEncode:TKWebSignature(encoded,TKWebUA,(uint32_t)[[NSDate date] timeIntervalSince1970])]];
         if(gnarly.length)encoded=[encoded stringByAppendingFormat:@"&X-Gnarly=%@",[TKUtils urlEncode:gnarly]];
     }
-    return [self requestURL:[NSString stringWithFormat:@"https://www.tiktok.com%@?%@",path,encoded] jar:jar completion:^(id json, NSDictionary *headers, NSError *error) {
+    return [self requestURL:[NSString stringWithFormat:@"https://www.tiktok.com%@?%@",path,encoded] jar:jar extraHeaders:signatureHeaders completion:^(id json, NSDictionary *headers, NSError *error) {
         if (!error && ![TKDirectParser successfulResponse:TKDict(json)]) error=[self unavailable];
         completion(error ? nil : json, error ? 0 : 200, error);
     }];

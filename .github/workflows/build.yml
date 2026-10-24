@@ -121,6 +121,7 @@ jobs:
           cp LICENSE Resources/licenses/TikTak-LICENSE.txt
           cp THIRD-PARTY-NOTICES.md Resources/licenses/THIRD-PARTY-NOTICES.txt
           cp docs/licenses/tiktok-xgnarly-LICENSE.txt Resources/licenses/tiktok-xgnarly-LICENSE.txt
+          cp docs/licenses/tiktok-web-signature-LICENSE.txt Resources/licenses/tiktok-web-signature-LICENSE.txt
           cp vendor/mbedtls/LICENSE Resources/licenses/mbedtls-LICENSE.txt
           ls -la Resources/licenses
 
