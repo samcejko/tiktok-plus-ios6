@@ -100,7 +100,7 @@ static const NSUInteger TKMaxSeen = 4000;
 + (void)clearSearchHistory { [DEF setObject:@[] forKey:@"searchHistory"]; }
 + (BOOL)darkTheme { return [DEF boolForKey:@"darkTheme"]; }
 + (void)setDarkTheme:(BOOL)value { [DEF setBool:value forKey:@"darkTheme"]; }
-+ (BOOL)verifyTLS { return [DEF boolForKey:@"verifyTLS"]; }
++ (BOOL)verifyTLS { return YES; }
 + (void)setVerifyTLS:(BOOL)value { [DEF setBool:value forKey:@"verifyTLS"]; }
 
 #pragma mark - Languages

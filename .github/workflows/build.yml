@@ -213,9 +213,11 @@ jobs:
               -Isrc -Isrc/TikTok -c "$source" -o "/tmp/tiktak-parser-objects/$(basename "$source").o"
           done
           # Link compiled objects without the ARC driver flag: iOS 6 supplies its ARC runtime itself.
-          clang -target "$TARGET" -isysroot "$SDK" -lobjc -framework Foundation -framework UIKit \
+          clang -target "$TARGET" -isysroot "$SDK" -lobjc -framework Foundation -framework UIKit -framework CFNetwork \
             /tmp/tiktak-parser-objects/*.o -o "packages/direct-parser-tests${{ matrix.suffix }}"
-          install_name_tool -change /System/Library/Frameworks/CFNetwork.framework/CFNetwork /System/Library/Frameworks/Foundation.framework/Foundation "packages/direct-parser-tests${{ matrix.suffix }}" || true
+          if [ "${{ matrix.scheme }}" != rootless ]; then
+            install_name_tool -change /System/Library/Frameworks/CFNetwork.framework/CFNetwork /System/Library/Frameworks/Foundation.framework/Foundation "packages/direct-parser-tests${{ matrix.suffix }}"
+          fi
           ldid -S "packages/direct-parser-tests${{ matrix.suffix }}"
 
       - name: Make IPA
@@ -225,7 +227,9 @@ jobs:
           echo "app: $APP"
           LDID=$(command -v ldid || find "$THEOS" -type f -name ldid | head -n1)
           echo "ldid: $LDID"
-          "$LDID" -S"$GITHUB_WORKSPACE/entitlements.xml" "$APP/TikiePlus"
+          ENTITLEMENTS=entitlements.xml
+          if [ "${{ matrix.scheme }}" = rootless ]; then ENTITLEMENTS=entitlements-arm64.xml; fi
+          "$LDID" -S"$GITHUB_WORKSPACE/$ENTITLEMENTS" "$APP/TikiePlus"
           "$LDID" -e "$APP/TikiePlus" | head -n 20
           VERSION=$(grep '^Version:' control | cut -d' ' -f2)
           rm -rf /tmp/ipa && mkdir -p /tmp/ipa/Payload packages

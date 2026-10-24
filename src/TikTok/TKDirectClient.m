@@ -14,6 +14,8 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
 @property (nonatomic, strong) NSMutableArray *accountCookies;
 @property (nonatomic, strong) NSDictionary *session;
 @property (nonatomic, strong) NSDictionary *webContext;
+@property (nonatomic, strong) TKHTTPTask *warmTask;
+@property (nonatomic, strong) NSMutableArray *warmWaiters;
 @property (nonatomic, strong) NSMutableDictionary *pending;
 @property (nonatomic, strong) NSMutableDictionary *liveAuthors;
 @end
@@ -24,7 +26,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     static TKDirectClient *client; static dispatch_once_t once;
     dispatch_once(&once, ^{
         client = [[self alloc] init]; client.anonymousCookies = [NSMutableArray array]; client.pending = [NSMutableDictionary dictionary];
-        client.liveAuthors = [NSMutableDictionary dictionary];
+        client.liveAuthors = [NSMutableDictionary dictionary]; client.warmWaiters=[NSMutableArray array];
         NSString *saved = [TKKeychain secureStringForKey:TKDirectKey];
         NSDictionary *d = TKDict([TKUtils JSONObjectFromData:[saved dataUsingEncoding:NSUTF8StringEncoding]]);
         NSError *error = nil; NSArray *jar = [TKDirectParser cookiesFromString:TKStr(d[@"cookies"]) ?: @"" error:&error];
@@ -129,7 +131,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
         NSMutableDictionary *v=[[TKDirectParser video:it maxHeight:height] mutableCopy];
         if (v) { v[@"headers"]=headers; [items addObject:v];
             NSString *room=TKStr(v[@"authorLive"]), *author=TKStr(v[@"author"]);
-            if (room.length && ![room isEqualToString:@"0"] && author.length) [self shared].liveAuthors[room]=@{@"room":room,@"user":author,@"name":v[@"authorName"],@"avatar":v[@"authorAvatar"]};
+            if (room.length && ![room isEqualToString:@"0"] && author.length) [self shared].liveAuthors[room]=@{@"room":room,@"user":author,@"name":v[@"authorName"],@"avatar":v[@"authorAvatar"],@"seen":@([[NSDate date] timeIntervalSince1970])};
         }
     }
     return items;
@@ -137,16 +139,32 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
 + (TKHTTPTask *)getPath:(NSString *)path query:(NSString *)query completion:(TKJSONCompletion)completion
 {
     TKHTTPTask *outer=[[TKHTTPTask alloc] init]; TKDirectClient *c=[self shared];
-    NSMutableArray *jar=c.accountCookies ?: c.anonymousCookies;
+    NSMutableArray *baseJar=c.accountCookies ?: c.anonymousCookies;
+    __block NSMutableArray *jar=nil;
     NSString *requestedToken=TKStr(c.session[@"token"]);
     NSDictionary *q=[TKUtils parseQuery:query ?: @""]; NSInteger height=TKInt(q[@"maxh"]) ?: 1280;
     __block TKHTTPTask *current=nil;
     outer.cancelBlock=^{ [current cancel]; };
     void (^finish)(id,NSInteger,NSError *)=^(id json,NSInteger status,NSError *error) { if (!outer.isCancelled) { outer.cancelBlock=nil; if (![(requestedToken ?: @"") isEqualToString:TKStr([self shared].session[@"token"]) ?: @""]) { completion(nil,0,TKMakeError(TKErrorCancelled,L(@"Session changed."))); return; } completion(json,status,error); } };
-    void (^run)(void)=^{ if (!outer.isCancelled) current=[self route:path query:q jar:jar height:height completion:finish]; };
-    if (!jar.count && ![path isEqualToString:@"/expand"]) {
-        current=[self requestURL:@"https://www.tiktok.com/explore" jar:jar completion:^(id scope,NSDictionary *headers,NSError *error) {
-            if (error) finish(nil,0,error); else run();
+    BOOL privatePath=[@[@"/following",@"/foryou",@"/liked",@"/notifications"] containsObject:path];
+    void (^run)(void)=^{
+        if (outer.isCancelled) return;
+        if (![(requestedToken ?: @"") isEqualToString:TKStr(c.session[@"token"]) ?: @""]) { finish(nil,0,TKMakeError(TKErrorCancelled,L(@"Session changed."))); return; }
+        jar=[baseJar mutableCopy]; // Each batch keeps the cookies used to obtain its media URLs.
+        if (privatePath) {
+            current=[self validate:^(BOOL valid,NSDictionary *user,NSError *error) {
+                if (outer.isCancelled) return;
+                if (!valid) { if (!error && [TKSession sharedSession].signedIn) [[TKSession sharedSession] signOut]; finish(nil,0,error ?: TKMakeError(TKErrorAuth,L(@"TikTok could not verify this session. Export fresh cookies while signed in."))); return; }
+                current=[self route:path query:q jar:jar height:height completion:finish];
+            }];
+        } else current=[self route:path query:q jar:jar height:height completion:finish];
+    };
+    if ((!baseJar.count || !c.webContext.count) && ![path isEqualToString:@"/expand"]) {
+        void (^ready)(NSError *)=^(NSError *error){ if (error) finish(nil,0,error); else run(); };
+        [c.warmWaiters addObject:[ready copy]];
+        if (!c.warmTask) c.warmTask=[self requestURL:@"https://www.tiktok.com/explore" jar:baseJar completion:^(id scope,NSDictionary *headers,NSError *error) {
+            NSArray *waiters=[c.warmWaiters copy];[c.warmWaiters removeAllObjects];c.warmTask=nil;
+            for (void (^waiter)(NSError *) in waiters) waiter(error);
         }];
     } else run();
     return outer;
@@ -205,7 +223,11 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
         completion(error ? nil : @{@"items":words},status,error);
     }];
     if ([path isEqualToString:@"/live"]) return [self live:TKStr(q[@"room"]) jar:jar completion:completion];
-    if ([path isEqualToString:@"/lives"]) return [self immediate:@{@"items":[[self shared].liveAuthors allValues]} error:nil completion:completion];
+    if ([path isEqualToString:@"/lives"]) {
+        NSMutableDictionary *rooms=[self shared].liveAuthors;NSTimeInterval cutoff=[[NSDate date] timeIntervalSince1970]-600;
+        for (NSString *key in [rooms allKeys]) if (TKDbl(TKDict(rooms[key])[@"seen"])<cutoff) [rooms removeObjectForKey:key];
+        return [self immediate:@{@"items":[rooms allValues]} error:nil completion:completion];
+    }
     if ([path isEqualToString:@"/expand"]) {
         NSString *link=TKStr(q[@"u"]); NSURL *u=[NSURL URLWithString:link ?: @""];
         if (![self tiktokHost:u.host]) return [self immediate:nil error:[self unavailable] completion:completion];
@@ -300,16 +322,24 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
 {
     NSError *error=nil;NSMutableArray *jar=[[TKDirectParser cookiesFromString:input error:&error] mutableCopy];
     if(!jar){return [self immediate:nil error:error completion:^(id j,NSInteger s,NSError *e){completion(NO,nil,nil,e);}];}
-    return [self requestURL:@"https://www.tiktok.com/passport/web/account/info/?aid=1988&app_name=tiktok_web" jar:jar completion:^(id json,NSDictionary *headers,NSError *error){
+    TKHTTPTask *outer=[[TKHTTPTask alloc] init];__block TKHTTPTask *part=nil;outer.cancelBlock=^{[part cancel];};
+    part=[self requestURL:@"https://www.tiktok.com/passport/web/account/info/?aid=1988&app_name=tiktok_web" jar:jar completion:^(id json,NSDictionary *headers,NSError *error){
+        if(outer.isCancelled)return;
         NSDictionary *user=[TKDirectParser verifiedAccount:TKDict(json) cookies:jar];
-        if(error || !user){completion(NO,nil,nil,error ?: TKMakeError(TKErrorAuth,L(@"TikTok could not verify this session. Export fresh cookies while signed in.")));return;}
-        NSString *token=[[NSProcessInfo processInfo] globallyUniqueString];
-        // Only the caller can commit a successful, still-current import.
-        [self shared].pending[token]=@{@"token":token,@"user":user,@"cookies":[self serializeCookies:jar]};
-        completion(YES,token,user,nil);
-        [[self shared].pending removeObjectForKey:token];
-    }];
+        if(error || !user){outer.cancelBlock=nil;completion(NO,nil,nil,error ?: TKMakeError(TKErrorAuth,L(@"TikTok could not verify this session. Export fresh cookies while signed in.")));return;}
+        part=[self requestURL:[@"https://www.tiktok.com/@" stringByAppendingString:[TKUtils urlEncode:TKStr(user[@"handle"])]] jar:jar completion:^(id scope,NSDictionary *h,NSError *error){
+            if(outer.isCancelled)return;outer.cancelBlock=nil;
+            NSDictionary *profile=[TKDirectParser profile:TKDict(TKDict(TKDict(scope)[@"webapp.user-detail"])[@"userInfo"])];
+            if(error || ![TKStr(profile[@"id"]) isEqualToString:TKStr(user[@"userId"])]) {completion(NO,nil,nil,error ?: TKMakeError(TKErrorAuth,L(@"The verified account and profile do not match. Export fresh TikTok cookies.")));return;}
+            NSMutableDictionary *verified=[user mutableCopy];verified[@"handle"]=profile[@"handle"];verified[@"name"]=profile[@"name"];verified[@"avatar"]=profile[@"avatar"];verified[@"secUid"]=profile[@"secUid"];
+            NSString *token=[[NSProcessInfo processInfo] globallyUniqueString];
+            [self shared].pending[token]=@{@"token":token,@"user":verified,@"cookies":[self serializeCookies:jar]};
+            completion(YES,token,verified,nil);
+            [[self shared].pending removeObjectForKey:token];
+        }];
+    }];return outer;
 }
+
 + (BOOL)commitSession:(NSString *)token
 {
     TKDirectClient *c=[self shared];NSDictionary *d=c.pending[token];if(!d)return NO;

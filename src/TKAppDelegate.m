@@ -76,6 +76,7 @@ static BOOL TKPressView(UIView *v, NSString *text)
     self.window.backgroundColor = [UIColor blackColor];
     [self.window makeKeyAndVisible];
     [application setStatusBarStyle:UIStatusBarStyleBlackOpaque animated:NO];
+    if ([TKSession sharedSession].signedIn) [[TKSession sharedSession] validateWithCompletion:nil];
     return YES;
 }
 
@@ -117,13 +118,6 @@ static BOOL TKPressView(UIView *v, NSString *text)
     if ([target isEqualToString:@"search"]) { [TKLinkRouter openSearch:params[@"q"]]; return YES; }
     if ([target isEqualToString:@"open"] && [params[@"url"] length]) {
         if (![TKLinkRouter openLink:params[@"url"]]) [TKUtils alertWithTitle:L(@"Open a link") message:L(@"That does not look like a TikTok link.")];
-        return YES;
-    }
-    // tikie:server?url=<base>&key=<key> - set the helper address (also how you hand the app to other people)
-    if ([target isEqualToString:@"server"]) {
-        if ([params[@"url"] length]) [TKSettings setServerBaseURL:params[@"url"]];
-        if (params[@"key"]) [TKSettings setServerKey:params[@"key"]];
-        [TKUtils alertWithTitle:L(@"Settings") message:[TKSettings serverBaseURL].length ? [NSString stringWithFormat:@"%@%@", [TKSettings serverBaseURL], [TKSettings serverKey].length ? L(@" (key set)") : @""] : L(@"Not set")];
         return YES;
     }
 

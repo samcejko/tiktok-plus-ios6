@@ -247,7 +247,11 @@ static dispatch_semaphore_t TKConnectionSlots(void)
     if (!length) return;
     TKHTTPDataBlock cb = self.onData;
     if (cb) cb([NSData dataWithBytes:bytes length:length]);
-    else [self.accumulated appendBytes:bytes length:length];
+    else {
+        // Bound buffered JSON/HTML/images after decompression; streamed media remains incremental.
+        if (length > 16*1024*1024 || self.accumulated.length > 16*1024*1024-length) { self.bodyError=YES; return; }
+        [self.accumulated appendBytes:bytes length:length];
+    }
 }
 
 - (BOOL)setupInflate
@@ -277,7 +281,7 @@ static dispatch_semaphore_t TKConnectionSlots(void)
     self.bodyReceived += length;
     if (!_zactive) {
         [self deliverDecodedBytes:bytes length:length];
-        return YES;
+        return !self.bodyError;
     }
     _zstream.next_in = (Bytef *)bytes;
     _zstream.avail_in = (uInt)length;
@@ -301,6 +305,7 @@ static dispatch_semaphore_t TKConnectionSlots(void)
         NSUInteger produced = TKInflateBufferSize - _zstream.avail_out;
         _zproduced += produced;
         [self deliverDecodedBytes:_zout length:produced];
+        if (self.bodyError) return NO;
         if (rc == Z_STREAM_END) {
             _zactive = NO;   // anything after the end of the stream is ignored
             break;

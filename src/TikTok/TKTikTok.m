@@ -315,17 +315,11 @@
 
 + (TKHTTPTask *)myProfileWithCompletion:(void (^)(TKProfile *, NSError *))completion
 {
-    NSString *handle = [TKSession sharedSession].handle;
-    if (handle.length) {
-        return [self profileForUser:handle completion:completion];
-    }
-    NSString *url = [self urlForPath:@"/me" query:nil];
-    if (!url) { if (completion) completion(nil, [self notConfigured]); return nil; }
-    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
-        if (error) { if (completion) completion(nil, error); return; }
-        NSDictionary *userDict = TKDict(TKDict(json)[@"user"]);
-        TKProfile *p = [TKProfile profileFromUserJSON:userDict];
-        if (completion) completion(p, nil);
+    TKSession *session=[TKSession sharedSession];NSString *uid=session.userId,*token=session.token;
+    if (!session.signedIn) { if(completion)completion(nil,TKMakeError(TKErrorAuth,L(@"Sign in")));return nil; }
+    return [self profileForUser:session.handle completion:^(TKProfile *profile,NSError *error){
+        if (![session.token isEqualToString:token] || ![profile.userId isEqualToString:uid]) { if(completion)completion(nil,error ?: TKMakeError(TKErrorAuth,L(@"The verified account and profile do not match. Export fresh TikTok cookies.")));return; }
+        if(completion)completion(profile,error);
     }];
 }
 
