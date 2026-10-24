@@ -10,9 +10,9 @@
 # user on the phone: /var/jb/var/mobile/.ssh for mobile, /var/root/.ssh for root; the stock password is alpine).
 # dpkg needs root; everything else (launching, snapshots, crash logs) works as mobile too.
 
-$AppName = 'Tikie'
-$AppBundleId = 'com.samcejko.tikie'
-$AppUrlScheme = 'tikie'   # '' when the app has no URL scheme (no debug commands, no snapshots)
+$AppName = 'TikiePlus'
+$AppBundleId = 'com.samcejko.tikieplus'
+$AppUrlScheme = 'tiktakplus'   # '' when the app has no URL scheme (no debug commands, no snapshots)
 
 $script:IPhoneKey = Join-Path $env:USERPROFILE '.ssh\iphone'
 $script:IPhoneDefaultHost = ''

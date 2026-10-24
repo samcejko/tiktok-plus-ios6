@@ -95,6 +95,8 @@ static NSString * const TKSessionUserKey = @"tikie.user";
 {
     NSString *path = [self pendingCookieFilePath];
     if (![[NSFileManager defaultManager] fileExistsAtPath:path]) return nil;
+    NSDictionary *attributes=[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+    if ([attributes[NSFileSize] unsignedLongLongValue] > 1024*1024) return nil;
     NSError *err = nil;
     NSString *content = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:&err];
     if (!content && !err) {

@@ -51,19 +51,19 @@ function Copy-FromIPad {
 function Install-IPadPackage {
     param([string]$IpaPath, [string]$DebPath, [string]$IPadHost = $script:IPadDefaultHost)
     $installed = $false
-    Invoke-IPad -IPadHost $IPadHost -Command 'killall Tikie 2>/dev/null; echo stopped' | Out-Null
+    Invoke-IPad -IPadHost $IPadHost -Command 'killall TikiePlus 2>/dev/null; echo stopped' | Out-Null
     if ($IpaPath -and (Test-Path $IpaPath)) {
         Write-Host "Installing IPA $IpaPath ..."
-        Copy-ToIPad -LocalPath $IpaPath -RemotePath '/tmp/Tikie.ipa' -IPadHost $IPadHost
-        $out = Invoke-IPad -IPadHost $IPadHost -Command 'if command -v ipainstaller >/dev/null 2>&1; then ipainstaller -f /tmp/Tikie.ipa; echo "IPA_EXIT=$?"; elif command -v appinst >/dev/null 2>&1; then appinst /tmp/Tikie.ipa; echo "IPA_EXIT=$?"; else echo NO_INSTALLER; fi' | Out-String
+        Copy-ToIPad -LocalPath $IpaPath -RemotePath '/tmp/TikiePlus.ipa' -IPadHost $IPadHost
+        $out = Invoke-IPad -IPadHost $IPadHost -Command 'if command -v ipainstaller >/dev/null 2>&1; then ipainstaller -f /tmp/TikiePlus.ipa; echo "IPA_EXIT=$?"; elif command -v appinst >/dev/null 2>&1; then appinst /tmp/TikiePlus.ipa; echo "IPA_EXIT=$?"; else echo NO_INSTALLER; fi' | Out-String
         Write-Host $out
         # ipainstaller's exit code is not reliable; trust its own success message as well.
         if ($out -match 'IPA_EXIT=0' -or $out -match '(?i)installed .* successfully') { $installed = $true }
     }
     if (-not $installed -and $DebPath -and (Test-Path $DebPath)) {
         Write-Host "Installing DEB $DebPath (falls back to /Applications) ..."
-        Copy-ToIPad -LocalPath $DebPath -RemotePath '/tmp/Tikie.deb' -IPadHost $IPadHost
-        $out = Invoke-IPad -IPadHost $IPadHost -Command 'dpkg -i /tmp/Tikie.deb 2>&1 && { uicache 2>/dev/null; echo DEB_OK; }' | Out-String
+        Copy-ToIPad -LocalPath $DebPath -RemotePath '/tmp/TikiePlus.deb' -IPadHost $IPadHost
+        $out = Invoke-IPad -IPadHost $IPadHost -Command 'dpkg -i /tmp/TikiePlus.deb 2>&1 && { su mobile -c uicache 2>/dev/null; echo DEB_OK; }' | Out-String
         Write-Host $out
         if ($out -match 'DEB_OK') { $installed = $true }
     }
@@ -100,9 +100,13 @@ function Get-TikieLog {
 # The app's sandbox folder on the iPad (it changes with a reinstall)
 function Get-IPadAppContainer {
     param([string]$IPadHost = $script:IPadDefaultHost)
-    $out = (Invoke-IPad -IPadHost $IPadHost -Command "ls -d /var/mobile/Applications/*/Tikie.app 2>/dev/null | sed -n '1p'" | Out-String).Trim()
-    if (-not $out) { throw 'Tikie is not installed on the iPad' }
-    $out -replace '/Tikie\.app$', ''
+    $out = (Invoke-IPad -IPadHost $IPadHost -Command "ls -d /var/mobile/Applications/*/TikiePlus.app 2>/dev/null | sed -n '1p'" | Out-String).Trim()
+    if (-not $out) {
+        $systemApp = (Invoke-IPad -IPadHost $IPadHost -Command 'test -d /Applications/TikiePlus.app && echo installed' | Out-String).Trim()
+        if ($systemApp) { return '/var/mobile' }
+        throw 'TikTak+ is not installed on the iPad'
+    }
+    $out -replace '/TikiePlus\.app$', ''
 }
 
 # Turns the debug URL commands on (Tikie:snapshot, screen, press, tab, stats): a file "debug" in the app's Documents
@@ -125,7 +129,7 @@ function Get-IPadScreen {
     param([Parameter(Mandatory = $true)][string]$OutFile, [switch]$Real, [string]$IPadHost = $script:IPadDefaultHost)
     $kind = if ($Real) { 'screen' } else { 'snapshot' }
     $container = Get-IPadAppContainer -IPadHost $IPadHost
-    Invoke-IPad -IPadHost $IPadHost -Command "rm -f /tmp/Tikie-screen.png; uiopen 'Tikie:$kind'; sleep 3; cp '$container/tmp/screen.png' /tmp/Tikie-screen.png" | Out-Null
+    Invoke-IPad -IPadHost $IPadHost -Command "rm -f /tmp/Tikie-screen.png; uiopen 'tiktakplus:$kind'; sleep 3; cp '$container/tmp/screen.png' /tmp/Tikie-screen.png" | Out-Null
     Copy-FromIPad -IPadHost $IPadHost -RemotePath '/tmp/Tikie-screen.png' -LocalPath $OutFile
     Get-Item $OutFile
 }

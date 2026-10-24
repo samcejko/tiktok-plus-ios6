@@ -97,14 +97,18 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
 + (NSDictionary *)scopeFromBody:(NSData *)body { return [TKDirectParser scopeFromHTML:[[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding]]; }
 + (TKHTTPTask *)api:(NSString *)path params:(NSDictionary *)params jar:(NSMutableArray *)jar completion:(TKJSONCompletion)completion
 {
-    NSMutableDictionary *q=[@{@"aid":@"1988", @"app_name":@"tiktok_web", @"device_platform":@"web_pc", @"language":@"en"} mutableCopy];
+    NSMutableDictionary *q=[@{@"aid":@"1988"} mutableCopy];
+    // These public endpoints reject otherwise-valid requests with unrelated web parameters.
+    BOOL minimal=[path hasPrefix:@"/api/comment/"] || [path isEqualToString:@"/api/search/general/sug/"] || [path isEqualToString:@"/api/explore/item_list/"];
+    if (!minimal) [q addEntriesFromDictionary:@{@"app_name":@"tiktok_web",@"device_platform":@"web_pc",@"language":@"en"}];
     [q addEntriesFromDictionary:params ?: @{}];
     BOOL signedAPI = [path rangeOfString:@"/search/general/full/"].location!=NSNotFound || [path rangeOfString:@"/challenge/"].location!=NSNotFound || [path rangeOfString:@"/music/"].location!=NSNotFound || [path rangeOfString:@"/feed/"].location!=NSNotFound || [path rangeOfString:@"/recommend/"].location!=NSNotFound || [path rangeOfString:@"/favorite/"].location!=NSNotFound;
     if (signedAPI) {
         NSDictionary *ctx=[self shared].webContext;
-        [q addEntriesFromDictionary:@{@"WebIdLastTime":@((long long)[[NSDate date] timeIntervalSince1970]),@"app_language":@"en",@"browser_language":@"en-US",@"browser_name":@"Mozilla",@"browser_online":@"true",@"browser_platform":@"Win32",@"browser_version":[TKWebUA substringFromIndex:8],@"channel":@"tiktok_web",@"cookie_enabled":@"true",@"focus_state":@"true",@"from_page":@"explore",@"history_len":@"1",@"is_fullscreen":@"false",@"is_page_visible":@"true",@"os":@"windows",@"priority_region":@"",@"referer":@"",@"region":TKStr(ctx[@"region"]) ?: @"CZ",@"screen_height":@"1080",@"screen_width":@"1920",@"tz_name":@"Europe/Prague",@"webcast_language":@"en"}];
+        NSString *from=[path hasPrefix:@"/api/challenge/"]?@"hashtag":([path hasPrefix:@"/api/music/"]?@"music":([path rangeOfString:@"following"].location!=NSNotFound?@"following":([path rangeOfString:@"favorite"].location!=NSNotFound?@"profile":@"fyp")));
+        [q addEntriesFromDictionary:@{@"WebIdLastTime":@((long long)[[NSDate date] timeIntervalSince1970]),@"app_language":@"en",@"browser_language":@"en-US",@"browser_name":@"Mozilla",@"browser_online":@"true",@"browser_platform":@"Win32",@"browser_version":[TKWebUA substringFromIndex:8],@"channel":@"tiktok_web",@"cookie_enabled":@"true",@"focus_state":@"true",@"from_page":from,@"history_len":@"1",@"is_fullscreen":@"false",@"is_page_visible":@"true",@"os":@"windows",@"priority_region":@"",@"referer":@"",@"region":TKStr(ctx[@"region"]) ?: @"CZ",@"screen_height":@"1080",@"screen_width":@"1920",@"tz_name":@"Europe/Prague",@"webcast_language":@"en"}];
         if (TKStr(ctx[@"wid"]).length) q[@"device_id"]=TKStr(ctx[@"wid"]);
-        for (NSHTTPCookie *cookie in jar) if ([cookie.name isEqualToString:@"msToken"]) q[@"msToken"]=cookie.value;
+        for (NSHTTPCookie *cookie in jar) if ([cookie.name isEqualToString:@"msToken"] && (!cookie.expiresDate || [cookie.expiresDate timeIntervalSinceNow]>0)) q[@"msToken"]=cookie.value;
         [q addEntriesFromDictionary:params ?: @{}];
     }
     NSString *encoded=[self query:q];
@@ -211,7 +215,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     if ([path isEqualToString:@"/comments"] || [path isEqualToString:@"/replies"]) {
         BOOL replies=[path isEqualToString:@"/replies"];
         NSMutableDictionary *p=[@{@"aweme_id":TKStr(q[@"id"]) ?: @"",@"count":@(count),@"cursor":@0} mutableCopy];
-        if (replies) { p[@"item_id"]=p[@"aweme_id"];p[@"comment_id"]=TKStr(q[@"cid"]) ?: @""; }
+        if (replies) { p[@"item_id"]=p[@"aweme_id"];[p removeObjectForKey:@"aweme_id"];p[@"comment_id"]=TKStr(q[@"cid"]) ?: @""; }
         return [self api:replies ? @"/api/comment/list/reply/" : @"/api/comment/list/" params:p jar:jar completion:^(id json,NSInteger status,NSError *error) {
             NSMutableArray *items=[NSMutableArray array]; for (id raw in TKArr(TKDict(json)[@"comments"])) { NSDictionary *c=[TKDirectParser comment:TKDict(raw)];if(c)[items addObject:c]; }
             if (!error && ![TKDict(json)[@"comments"] isKindOfClass:[NSArray class]]) error=[self unavailable];

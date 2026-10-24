@@ -6,7 +6,7 @@
 // Connects directly to TikTok from the device. All completions run on the main thread.
 @interface TKTikTok : NSObject
 
-+ (BOOL)configured;                          // a server base URL is set
++ (BOOL)configured;                          // direct networking is available without setup
 + (void)checkHealth:(void (^)(BOOL ok, NSString *info, NSError *error))completion;
 
 // A fresh batch from TikTok's Explore feed for one topic (an Explore CategoryType). Ready to play: playURL and
@@ -46,7 +46,7 @@
 // Where a (short) TikTok link leads
 + (TKHTTPTask *)expandLink:(NSString *)link completion:(void (^)(NSString *url, NSError *error))completion;
 
-// The Pi /proxy URL that streams a resolved video's bytes through the Pi (fallback, and for use away from home)
+// Retained compatibility hook; direct mode returns nil and uses the on-device loopback proxy.
 + (NSString *)proxyURLForPlayURL:(NSString *)playURL;
 
 // Logged-in session & user features

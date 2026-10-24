@@ -69,7 +69,7 @@ before-package::
 else
 before-package::
 	printf '%s\n' '#!/bin/sh' '[ "$$1" = configure ] || exit 0' \
-		'command -v uicache >/dev/null 2>&1 && uicache >/dev/null 2>&1 || true' \
+		'command -v uicache >/dev/null 2>&1 && su mobile -c uicache >/dev/null 2>&1 || true' \
 		'exit 0' > "$(THEOS_STAGING_DIR)/DEBIAN/postinst"
 	chmod 0755 "$(THEOS_STAGING_DIR)/DEBIAN/postinst"
 # The iOS 9.3 SDK places the NSURL* loading classes in CFNetwork; on iOS 6 they live in Foundation and dyld aborts at

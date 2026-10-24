@@ -1,5 +1,6 @@
 #import "TKAppDelegate.h"
 #import "TKFeedViewController.h"
+#import "TKGridViewController.h"
 #import "TKPageNavigationController.h"
 #import "TKLivePlayerViewController.h"
 #import "TKVideoCell.h"
@@ -137,6 +138,8 @@ static BOOL TKPressView(UIView *v, NSString *text)
         state[@"signedIn"]=@([TKSession sharedSession].signedIn);
         state[@"version"]=[TKUtils appVersion];
         if ([top isKindOfClass:[TKFeedViewController class]]) [state addEntriesFromDictionary:[(TKFeedViewController *)top diagnosticState]];
+        if ([top isKindOfClass:[TKGridViewController class]]) { TKGridViewController *grid=(TKGridViewController *)top;state[@"gridCount"]=@(grid.videos.count);state[@"loading"]=@(grid.loading); }
+        if ([top isKindOfClass:[UITableViewController class]]) { UITableView *table=[(UITableViewController *)top tableView];NSInteger rows=0;for(NSInteger i=0;i<table.numberOfSections;i++)rows+=[table numberOfRowsInSection:i];state[@"rows"]=@(rows);state[@"sections"]=@(table.numberOfSections); }
         [[TKUtils JSONDataFromObject:state] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tiktak-check.json"] atomically:YES];
         return YES;
     }
