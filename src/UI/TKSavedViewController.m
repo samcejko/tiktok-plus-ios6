@@ -68,11 +68,35 @@
 
 - (NSInteger)tableView:(UITableView *)t numberOfRowsInSection:(NSInteger)s { return (NSInteger)self.saved.count; }
 
-- (NSString *)tableView:(UITableView *)t titleForFooterInSection:(NSInteger)s
+- (NSString *)footerText
 {
     if (self.saved.count) return self.history ? L(@"The last 200 watched posts are kept only on this device.") : nil;
     if ([self.searchBar.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length) return L(@"No matching posts.");
     return self.history ? L(@"Posts appear here after you watch them. History stays on this device.") : L(@"Tap the star on a video to keep it here.");
+}
+
+- (CGFloat)tableView:(UITableView *)table heightForFooterInSection:(NSInteger)section
+{
+    NSString *text = [self footerText];
+    if (!text.length) return 0.01;
+    CGSize size = [text sizeWithFont:[UIFont systemFontOfSize:13] constrainedToSize:CGSizeMake(MAX(1, table.bounds.size.width - 32), CGFLOAT_MAX) lineBreakMode:NSLineBreakByWordWrapping];
+    return ceilf(size.height) + 20;
+}
+- (UIView *)tableView:(UITableView *)table viewForFooterInSection:(NSInteger)section
+{
+    NSString *text = [self footerText];
+    if (!text.length) return nil;
+    UIView *view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, table.bounds.size.width, [self tableView:table heightForFooterInSection:section])];
+    view.backgroundColor = [[TKTheme shared] backgroundColor];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectInset(view.bounds, 16, 10)];
+    label.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    label.backgroundColor = [UIColor clearColor];
+    label.textColor = [[TKTheme shared] secondaryTextColor];
+    label.font = [UIFont systemFontOfSize:13];
+    label.numberOfLines = 0;
+    label.text = text;
+    [view addSubview:label];
+    return view;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)t cellForRowAtIndexPath:(NSIndexPath *)ip

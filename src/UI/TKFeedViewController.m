@@ -25,6 +25,7 @@
 #import "TKUtils.h"
 #import "TKModern.h"
 #import "TKCommon.h"
+#import "TKActionSheet.h"
 
 enum { TKSheetMenu = 1, TKSheetVideo = 2, TKSheetSpeed = 3, TKSheetFeed = 4 };
 // The video's hold menu: what each of its buttons does (which buttons there are depends on the iOS and on what is
@@ -672,7 +673,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     if (cell != [self cellAt:self.currentIndex] || !cell.video || self.videoMenu.visible) return;
     self.menuCell = cell;
     self.menuVideoId = cell.video.videoId;
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    UIActionSheet *sheet = [[TKActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     sheet.tag = TKSheetVideo;
     self.videoMenu = sheet;
     NSMutableArray *actions = [NSMutableArray array];
@@ -785,7 +786,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 {
     TKVideoCell *cell = self.menuCell;
     if (cell != [self currentCell] || ![cell.video.videoId isEqual:self.menuVideoId] || !self.visible) return;
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Playback speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    UIActionSheet *sheet = [[TKActionSheet alloc] initWithTitle:L(@"Playback speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     sheet.tag = TKSheetSpeed;
     for (NSNumber *speed in @[@0.5, @1, @1.5, @2]) {
         NSString *label = [NSString stringWithFormat:@"%g×%@", speed.floatValue, fabsf(speed.floatValue - cell.selectedPlaybackSpeed) < 0.01f ? @" ✓" : @""];
@@ -799,7 +800,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 - (void)chooseFeed
 {
     if (self.fixedMode || ![TKSession sharedSession].signedIn) return;
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Choose feed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    UIActionSheet *sheet = [[TKActionSheet alloc] initWithTitle:L(@"Choose feed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     sheet.tag = TKSheetFeed;
     NSArray *names = @[L(@"Explore"), L(@"For You"), L(@"Following")];
     for (NSUInteger i = 0; i < names.count; i++) [sheet addButtonWithTitle:[names[i] stringByAppendingString:(NSInteger)i == self.feedMode ? @" ✓" : @""]];
@@ -812,7 +813,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 - (void)openMenu
 {
     if (self.fixedMode) { [self toggleMute]; return; }
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    UIActionSheet *sheet = [[TKActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     sheet.tag = TKSheetMenu;
     self.feedWhenMenuGone = NO;
     NSMutableArray *actions = [NSMutableArray array];

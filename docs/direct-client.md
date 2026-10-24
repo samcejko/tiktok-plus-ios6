@@ -12,6 +12,7 @@ This supersedes the old helper-only proposal. The default app connects to TikTok
 - Saved posts, search history, topic/language preferences and the Explore recommender stay local. Saved posts are resolved again before playback; expiring video URLs are not treated as permanent downloads.
 - Viewing history keeps at most 200 unique posts, newest first, after two seconds of actual visible playback. Prefetching and seeking alone do not create a history entry. Only metadata is stored; playback URLs and unknown/session fields are excluded. History can be disabled, cleared or individually removed independently of saved posts and feed deduplication. Saved/history filtering ignores case and diacritics.
 - Video playback speed can be selected from 0.5×, 1×, 1.5× and 2×. Unsupported device/media speeds are rejected with a message; photo slideshows retain their timing. Seek, loop and pause/resume retain the current video's selected speed.
+- Feed and playback menus retain native iOS 6 sheets on iOS 6, with an app-drawn glossy action sheet on newer systems. The latter uses an overlay rather than a system modal, so selecting a speed cannot inadvertently cover/pause the feed or lose the next menu during dismissal.
 - Explore remains a distinct, always-accessible feed after sign-in. For You and Following never silently substitute Explore.
 
 ## Account identity and secrets
