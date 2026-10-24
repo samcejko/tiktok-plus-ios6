@@ -207,7 +207,7 @@ jobs:
             TARGET=armv7-apple-ios6.0; SDK="$THEOS/sdks/iPhoneOS9.3.sdk"
           fi
           mkdir -p packages
-          clang -target "$TARGET" -isysroot "$SDK" -fobjc-arc -fblocks -Os \
+          clang -target "$TARGET" -isysroot "$SDK" -fobjc-arc -fno-objc-link-runtime -fblocks -Os -lobjc \
             -Isrc -Isrc/TikTok -framework Foundation -framework UIKit \
             tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKWebSignature.m src/TKCommon.m \
             -o "packages/direct-parser-tests${{ matrix.suffix }}"

@@ -887,4 +887,12 @@ static const NSInteger TKAutoAdvancesMax = 5;
     else [self dismissViewControllerAnimated:YES completion:nil];
 }
 
+- (NSDictionary *)diagnosticState
+{
+    TKVideoCell *cell=[self currentCell];
+    return @{@"count":@([self count]),@"index":@(self.currentIndex),@"mode":@(self.feedMode),@"loading":@(self.feed.loading),
+        @"videoId":cell.video.videoId ?: @"",@"time":@(isfinite(cell.currentTime)?cell.currentTime:0),@"duration":@(isfinite(cell.duration)?cell.duration:0),
+        @"playing":@(cell.playing),@"rate":@([cell playerRate]),@"photo":@(cell.video.isPhoto),@"visible":@(self.visible),@"error":self.messageLabel.hidden ? @"" : (self.messageLabel.text ?: @"")};
+}
+
 @end

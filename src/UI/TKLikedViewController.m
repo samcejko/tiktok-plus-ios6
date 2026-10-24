@@ -1,6 +1,7 @@
 #import "TKLikedViewController.h"
 #import "TKTikTok.h"
 #import "TKCommon.h"
+#import "TKSession.h"
 
 @implementation TKLikedViewController
 
@@ -8,7 +9,10 @@
 {
     [super viewDidLoad];
     self.title = L(@"Liked videos");
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reload) name:TKSessionDidChangeNotification object:nil];
 }
+
+- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; }
 
 - (NSString *)feedTitle { return L(@"Liked"); }
 - (NSString *)emptyMessage { return L(@"No liked videos."); }

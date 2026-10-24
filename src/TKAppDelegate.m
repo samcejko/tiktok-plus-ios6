@@ -15,6 +15,7 @@
 #import "TKUtils.h"
 #import "TKModern.h"
 #import "TKCommon.h"
+#import "TKSession.h"
 #include <dlfcn.h>
 #include <signal.h>
 #include <mach/mach.h>
@@ -96,7 +97,7 @@ static BOOL TKPressView(UIView *v, NSString *text)
     NSString *s = url.absoluteString ?: @"";
     NSString *lower = [s lowercaseString];
     if ([lower hasPrefix:@"http://"] || [lower hasPrefix:@"https://"]) return [TKLinkRouter openLink:s];
-    NSString *scheme = [lower hasPrefix:@"tiktak:"] ? @"tiktak:" : [lower hasPrefix:@"tikie:"] ? @"tikie:" : nil;
+    NSString *scheme = [lower hasPrefix:@"tiktakplus:"] ? @"tiktakplus:" : [lower hasPrefix:@"tikieplus:"] ? @"tikieplus:" : [lower hasPrefix:@"tiktak:"] ? @"tiktak:" : [lower hasPrefix:@"tikie:"] ? @"tikie:" : nil;
     if (!scheme) return NO;
     NSString *target = [s substringFromIndex:scheme.length];
     while ([target hasPrefix:@"/"]) target = [target substringFromIndex:1];
@@ -129,6 +130,16 @@ static BOOL TKPressView(UIView *v, NSString *text)
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[TKUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
     UIViewController *top = [self topController];
+    if ([target isEqualToString:@"feedback"]) {
+        NSMutableDictionary *state=[NSMutableDictionary dictionary];
+        state[@"controller"]=NSStringFromClass([top class]);
+        state[@"signedIn"]=@([TKSession sharedSession].signedIn);
+        state[@"version"]=[TKUtils appVersion];
+        if ([top isKindOfClass:[TKFeedViewController class]]) [state addEntriesFromDictionary:[(TKFeedViewController *)top diagnosticState]];
+        [TKUtils JSONDataFromObject:state];
+        [[TKUtils JSONDataFromObject:state] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tiktak-check.json"] atomically:YES];
+        return YES;
+    }
     if ([target isEqualToString:@"stats"]) {
         struct task_basic_info info; mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;
         if (task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t)&info, &count) == KERN_SUCCESS)
