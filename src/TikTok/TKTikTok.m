@@ -2,6 +2,7 @@
 #import "TKTikTok.h"
 #import "TKHTTP.h"
 #import "TKDirectClient.h"
+#import "TKDirectParser.h"
 #import "TKSettings.h"
 #import "TKSession.h"
 #import "TKUtils.h"
@@ -82,6 +83,7 @@
 {
     TKVideo *r = [TKVideo videoFromJSON:json];
     if (!r) return;
+    video.likeStateKnown=r.likeStateKnown; video.liked=r.liked;
     video.playURL = r.playURL;
     video.playHeaders = r.playHeaders;
     video.fetchedAt = [NSDate timeIntervalSinceReferenceDate];
@@ -373,20 +375,29 @@
     }];
 }
 
-// TikTok's current web write protocol is not verified on these devices. Keep this explicit.
+// Account writes are sent once; success requires TikTok's explicit acknowledgement.
 + (TKHTTPTask *)diggVideoId:(NSString *)videoId type:(NSInteger)type completion:(void (^)(BOOL, NSError *))completion
 {
-    if (completion) completion(NO, TKMakeError(TKErrorAPI, L(@"Account actions are not available in this version.")));
-    return nil;
+    return [TKDirectClient performAction:@"like" parameters:@{@"video":videoId ?: @"",@"on":@(type==1)} completion:^(id json,NSInteger status,NSError *error){ if(completion)completion(!error,error); }];
 }
 + (TKHTTPTask *)followUserId:(NSString *)userId secUid:(NSString *)secUid type:(NSInteger)type completion:(void (^)(BOOL, NSError *))completion
 {
-    if (completion) completion(NO, TKMakeError(TKErrorAPI, L(@"Account actions are not available in this version.")));
-    return nil;
+    return [TKDirectClient performAction:@"follow" parameters:@{@"user":userId ?: @"",@"sec":secUid ?: @"",@"on":@(type==1)} completion:^(id json,NSInteger status,NSError *error){ if(completion)completion(!error,error); }];
 }
 + (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text completion:(void (^)(BOOL, NSDictionary *, NSError *))completion
 {
-    if (completion) completion(NO, nil, TKMakeError(TKErrorAPI, L(@"Account actions are not available in this version.")));
-    return nil;
+    return [self postCommentOnVideoId:videoId text:text replyTo:nil completion:completion];
+}
++ (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text replyTo:(NSString *)commentId completion:(void (^)(BOOL, NSDictionary *, NSError *))completion
+{
+    return [TKDirectClient performAction:@"publish" parameters:@{@"video":videoId ?: @"",@"text":text ?: @"",@"comment":commentId ?: @""} completion:^(id json,NSInteger status,NSError *error){ if(completion)completion(!error,[TKDirectParser comment:TKDict(json)[@"comment"]],error); }];
+}
++ (TKHTTPTask *)likeComment:(TKComment *)comment videoId:(NSString *)videoId on:(BOOL)on completion:(void (^)(BOOL, NSError *))completion
+{
+    return [TKDirectClient performAction:@"commentLike" parameters:@{@"video":videoId ?: @"",@"comment":comment.commentId ?: @"",@"on":@(on)} completion:^(id json,NSInteger status,NSError *error){ if(completion)completion(!error,error); }];
+}
++ (TKHTTPTask *)deleteComment:(TKComment *)comment completion:(void (^)(BOOL, NSError *))completion
+{
+    return [TKDirectClient performAction:@"deleteComment" parameters:@{@"comment":comment.commentId ?: @"",@"owner":comment.userId ?: @""} completion:^(id json,NSInteger status,NSError *error){ if(completion)completion(!error,error); }];
 }
 @end

@@ -43,6 +43,7 @@ static UILabel *TKCommentSizingLabel(void)
 @property (nonatomic, strong) TKLinkLabel *bodyLabel;     // (its web links open on a tap)
 @property (nonatomic, strong) UILabel *metaLabel;
 @property (nonatomic, strong) UILabel *heartLabel;
+@property (nonatomic, strong) UIButton *heartButton;
 @property (nonatomic, strong) UILabel *likesLabel;
 @property (nonatomic) BOOL reply;
 @end
@@ -81,6 +82,8 @@ static UILabel *TKCommentSizingLabel(void)
         [self.contentView addSubview:_bodyLabel];
         _metaLabel = [self label:[UIFont systemFontOfSize:11] color:[theme secondaryTextColor]];
         _heartLabel = [self label:[UIFont systemFontOfSize:15] color:[theme secondaryTextColor]];
+        _heartButton=[UIButton buttonWithType:UIButtonTypeCustom];
+        [self.contentView addSubview:_heartButton];
         _heartLabel.text = @"♥";
         _heartLabel.textAlignment = NSTextAlignmentCenter;
         _likesLabel = [self label:[UIFont systemFontOfSize:11] color:[theme secondaryTextColor]];
@@ -110,6 +113,8 @@ static UILabel *TKCommentSizingLabel(void)
     self.metaLabel.frame = CGRectMake(x, CGRectGetMaxY(self.bodyLabel.frame) + 3, textW, 14);
     self.heartLabel.frame = CGRectMake(w - TKLikesWidth, 12, TKLikesWidth, 18);
     self.likesLabel.frame = CGRectMake(w - TKLikesWidth, 30, TKLikesWidth, 14);
+    self.heartButton.frame=CGRectMake(w-TKLikesWidth,4,TKLikesWidth,44);
+    [self.contentView bringSubviewToFront:self.heartButton];
 }
 
 @end
@@ -127,6 +132,15 @@ static UILabel *TKCommentSizingLabel(void)
 @property (nonatomic) BOOL loading;
 @property (nonatomic, copy) NSString *status;
 @property (nonatomic, strong) TKHTTPTask *task;
+@property (nonatomic, strong) NSMutableDictionary *drafts;
+@property (nonatomic, strong) NSMutableSet *pendingActions;
+@property (nonatomic, strong) TKComment *replyTarget;
+@property (nonatomic, strong) TKVideo *composeVideo;
+@property (nonatomic, copy) NSString *composeToken;
+@property (nonatomic, copy) NSString *draftKey;
+@property (nonatomic, weak) UIAlertView *composeAlert;
+@property (nonatomic) BOOL sending;
+
 @end
 
 @implementation TKCommentsViewController
@@ -136,7 +150,8 @@ static UILabel *TKCommentSizingLabel(void)
     if ((self = [super initWithStyle:UITableViewStylePlain])) {
         _video = video;
         _replies = [NSMutableDictionary dictionary];
-        _loadingReplies = [NSMutableSet set];
+        _loadingReplies = [NSMutableSet set]; _drafts=[NSMutableDictionary dictionary]; _pendingActions=[NSMutableSet set];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(accountChanged) name:TKSessionDidChangeNotification object:nil];
     }
     return self;
 }
@@ -153,7 +168,13 @@ static UILabel *TKCommentSizingLabel(void)
     return self;
 }
 
-- (void)dealloc { [self.task cancel]; }
+- (void)dealloc { [self.task cancel]; [[NSNotificationCenter defaultCenter] removeObserver:self]; }
+- (void)accountChanged
+{
+    [self.drafts removeAllObjects]; self.replyTarget=nil;
+    [self.composeAlert dismissWithClickedButtonIndex:self.composeAlert.cancelButtonIndex animated:NO];
+    if(self.isViewLoaded)[self load];
+}
 
 - (void)viewDidLoad
 {
@@ -296,6 +317,7 @@ static UILabel *TKCommentSizingLabel(void)
         cell = [[TKCommentCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"comment"];
         [cell.avatarButton addTarget:self action:@selector(openAuthor:) forControlEvents:UIControlEventTouchUpInside];
         [cell.nameButton addTarget:self action:@selector(openAuthor:) forControlEvents:UIControlEventTouchUpInside];
+        [cell.heartButton addTarget:self action:@selector(likeCommentButton:) forControlEvents:UIControlEventTouchUpInside];
     }
     TKComment *c = self.rows[(NSUInteger)ip.row];
     cell.reply = c.isReply;
@@ -307,6 +329,11 @@ static UILabel *TKCommentSizingLabel(void)
     cell.bodyLabel.font = c.isReply ? [[TKTheme shared] smallFont] : [[TKTheme shared] bodyFont];   // (before the text: its links take the font)
     cell.bodyLabel.text = [TKUtils displayText:c.text];
     cell.metaLabel.text = c.createdAt > 0 ? [TKUtils formatRelativeDate:[NSDate dateWithTimeIntervalSince1970:c.createdAt]] : @"";
+    cell.heartLabel.textColor=c.likeStateKnown && c.liked ? [UIColor colorWithRed:1 green:.2 blue:.3 alpha:1] : [[TKTheme shared] secondaryTextColor];
+    cell.heartLabel.text=c.likeStateKnown && c.liked ? @"♥" : @"♡";
+    cell.heartButton.tag=ip.row;
+    cell.heartButton.accessibilityLabel=c.likeStateKnown && c.liked ? L(@"Unlike comment") : L(@"Like comment");
+    cell.heartButton.enabled=![self.pendingActions containsObject:c.commentId];
     cell.likesLabel.text = c.likes ? [TKUtils formatCount:c.likes] : @"";
     cell.avatarButton.tag = ip.row;
     cell.nameButton.tag = ip.row;
@@ -344,9 +371,16 @@ static UILabel *TKCommentSizingLabel(void)
         }
     } else if([row isKindOfClass:[TKComment class]]) {
         TKComment *comment=row;
-        [TKActionSheet options:@[L(@"Read full comment"),L(@"Copy comment")] title:L(@"Comment") inView:self.view selection:^(NSInteger i){
+        NSMutableArray *options=[NSMutableArray arrayWithObjects:L(@"Read full comment"),L(@"Copy comment"),nil];
+        BOOL signedIn=[TKSession sharedSession].signedIn;
+        if(signedIn)[options addObject:L(@"Reply")];
+        BOOL own=signedIn && [comment.userId isEqualToString:[TKSession sharedSession].userId];
+        if(own)[options addObject:L(@"Delete comment")];
+        [TKActionSheet options:options title:L(@"Comment") inView:self.view selection:^(NSInteger i){
             if(i==0)[TKUtils alertWithTitle:[self nameOf:comment] message:comment.text];
-            else [UIPasteboard generalPasteboard].string=comment.text;
+            else if(i==1)[UIPasteboard generalPasteboard].string=comment.text;
+            else if(i==2 && signedIn) { self.replyTarget=comment; [self showComposer]; }
+            else if(own) [self confirmDelete:comment];
         }];
     }
 }
@@ -358,36 +392,78 @@ static UILabel *TKCommentSizingLabel(void)
     if ([row isKindOfClass:[TKComment class]] && [(TKComment *)row author].length) [TKLinkRouter openProfile:[(TKComment *)row author]];
 }
 
-- (void)postCommentPrompt
+- (void)likeCommentButton:(UIButton *)button
 {
-    if (![TKSettings allowAccountWrites]) {
-        [TKUtils alertWithTitle:L(@"Actions disabled") message:L(@"Enable 'Allow actions on account' in Settings to post comments.")];
-        return;
-    }
-    UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Add comment")
-                                                message:[NSString stringWithFormat:L(@"Posting as @%@"), [TKSession sharedSession].handle ?: @""]
-                                               delegate:self
-                                      cancelButtonTitle:L(@"Cancel")
-                                      otherButtonTitles:L(@"Post"), nil];
-    a.alertViewStyle = UIAlertViewStylePlainTextInput;
-    a.tag = 101;
-    [a show];
+    if(button.tag<0 || button.tag>=(NSInteger)self.rows.count) return;
+    id row=self.rows[(NSUInteger)button.tag]; if(![row isKindOfClass:[TKComment class]])return;
+    TKComment *comment=row;
+    if(![TKSession sharedSession].signedIn) { [TKUtils alertWithTitle:L(@"Sign in") message:L(@"Sign in to use TikTok account actions.")]; return; }
+    if([self.pendingActions containsObject:comment.commentId])return;
+    [self.pendingActions addObject:comment.commentId]; [self.tableView reloadData];
+    BOOL on=!(comment.likeStateKnown && comment.liked); TKVideo *video=self.video; NSString *token=[TKSession sharedSession].token;
+    [TKTikTok likeComment:comment videoId:video.videoId on:on completion:^(BOOL ok,NSError *error){
+        [self.pendingActions removeObject:comment.commentId];
+        if(![token isEqualToString:[TKSession sharedSession].token] || video!=self.video)return;
+        if(ok) { comment.likeStateKnown=YES; comment.liked=on; comment.likes=MAX(0,comment.likes+(on?1:-1)); }
+        else [TKUtils alertWithTitle:L(@"Action not confirmed") message:error.localizedDescription];
+        [self.tableView reloadData];
+    }];
 }
-
+- (void)confirmDelete:(TKComment *)comment
+{
+    if([self.pendingActions containsObject:comment.commentId])return;
+    TKVideo *video=self.video; NSString *token=[TKSession sharedSession].token;
+    [TKActionSheet options:@[L(@"Delete comment")] title:L(@"Delete your comment permanently?") inView:self.view selection:^(NSInteger i){
+        if(![token isEqualToString:[TKSession sharedSession].token] || video!=self.video)return;
+        [self.pendingActions addObject:comment.commentId];
+        [TKTikTok deleteComment:comment completion:^(BOOL ok,NSError *error){
+            [self.pendingActions removeObject:comment.commentId];
+            if(![token isEqualToString:[TKSession sharedSession].token] || video!=self.video)return;
+            if(ok) {
+                NSMutableArray *top=[self.comments mutableCopy]; [top removeObject:comment]; self.comments=top;
+                for(NSString *key in self.replies.allKeys) { NSMutableArray *r=[self.replies[key] mutableCopy]; if([r containsObject:comment]) { [r removeObject:comment]; self.replies[key]=r; for(TKComment *parent in self.comments)if([parent.commentId isEqualToString:key])parent.replyCount=MAX(0,parent.replyCount-1); } }
+                [self.replies removeObjectForKey:comment.commentId]; self.video.commentCount=MAX(0,self.video.commentCount-1);
+                if(!self.comments.count)self.status=L(@"No comments to show."); [self rebuildRows];
+            } else [TKUtils alertWithTitle:L(@"Action not confirmed") message:error.localizedDescription];
+        }];
+    }];
+}
+- (void)postCommentPrompt { self.replyTarget=nil; [self showComposer]; }
+- (void)showComposer
+{
+    if(self.sending || self.composeAlert.visible)return;
+    if(![TKSession sharedSession].signedIn || !self.video.videoId.length)return;
+    self.composeVideo=self.video; self.composeToken=[TKSession sharedSession].token;
+    self.draftKey=[NSString stringWithFormat:@"%@:%@:%@",self.composeToken,self.video.videoId,self.replyTarget.commentId ?: @""];
+    NSString *title=self.replyTarget ? L(@"Reply") : L(@"Add comment");
+    NSString *message=[NSString stringWithFormat:L(@"Posting as @%@"),[TKSession sharedSession].handle ?: @""];
+    if(self.replyTarget)message=[message stringByAppendingFormat:@"\n@%@",self.replyTarget.author ?: @""];
+    UIAlertView *a=[[TKAlertView alloc] initWithTitle:title message:message delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Post"),nil];
+    a.alertViewStyle=UIAlertViewStylePlainTextInput; a.tag=101;
+    [a textFieldAtIndex:0].text=self.drafts[self.draftKey] ?: @"";
+    self.composeAlert=a; [a show];
+}
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
 {
-    if (alertView.tag == 101) {
-        if (buttonIndex == alertView.cancelButtonIndex) return;
-        NSString *text = [alertView textFieldAtIndex:0].text;
-        if (!text.length) return;
-        [TKTikTok postCommentOnVideoId:self.video.videoId text:text completion:^(BOOL ok, NSDictionary *comment, NSError *error) {
-            if (ok) {
-                [self load];
-            } else {
-                [TKUtils alertWithTitle:L(@"Failed") message:error.localizedDescription ?: L(@"Could not post comment.")];
-            }
-        }];
-    }
+    if(alertView.tag!=101)return;
+    NSString *text=[alertView textFieldAtIndex:0].text ?: @"";
+    NSString *key=self.draftKey,*token=self.composeToken; TKVideo *video=self.composeVideo; TKComment *parent=self.replyTarget;
+    if(![token isEqualToString:[TKSession sharedSession].token])return;
+    self.drafts[key]=text;
+    if(buttonIndex==alertView.cancelButtonIndex || !text.length)return;
+    if(video!=self.video || self.sending)return;
+    self.sending=YES;
+    [TKTikTok postCommentOnVideoId:video.videoId text:text replyTo:parent.commentId completion:^(BOOL ok,NSDictionary *result,NSError *error){
+        self.sending=NO;
+        if(![token isEqualToString:[TKSession sharedSession].token])return;
+        if(ok) [self.drafts removeObjectForKey:key];
+        if(video!=self.video)return;
+        if(ok) {
+            TKComment *comment=[TKComment commentFromJSON:result];
+            if(parent) { comment.isReply=YES; NSMutableArray *r=[self.replies[parent.commentId] mutableCopy] ?: [NSMutableArray array]; [r addObject:comment]; self.replies[parent.commentId]=r; parent.replyCount++; }
+            else { NSMutableArray *top=[self.comments mutableCopy] ?: [NSMutableArray array]; [top insertObject:comment atIndex:0]; self.comments=top; }
+            self.video.commentCount++; [self rebuildRows];
+        } else [TKUtils alertWithTitle:L(@"Action not confirmed") message:[NSString stringWithFormat:@"%@\n\n%@",error.localizedDescription ?: L(@"Could not post comment."),L(@"Your draft is kept. Refresh comments before sending it again.")]];
+    }];
 }
-
 @end

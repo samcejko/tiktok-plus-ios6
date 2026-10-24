@@ -91,6 +91,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 @property (nonatomic, copy) NSString *menuVideoId;
 @property (nonatomic) NSInteger submenuWhenGone;
 @property (nonatomic, strong) NSArray *filterState;
+@property (nonatomic, strong) NSMutableSet *pendingLikes;
 @property (nonatomic) NSInteger autoAdvanceStreak;        // moves on by itself since the viewer last did anything
 @property (nonatomic) BOOL autoAdvancing;                 // the page change under way is one of those
 @property (nonatomic) BOOL pageAnimating;                 // advance's scroll is under way
@@ -216,6 +217,8 @@ static const NSInteger TKAutoAdvancesMax = 5;
 
 - (void)sessionChanged
 {
+    for(TKVideo *video in self.fixedVideos) { video.likeStateKnown=NO; video.liked=NO; }
+    for (TKVideoCell *cell in self.cells.allValues) { cell.video.likeStateKnown=NO; cell.video.liked=NO; [cell updateLikeStateBusy:NO]; }
     if (self.fixedMode) return;
     [self removeAllCells];
     self.feedMode = 0;
@@ -628,17 +631,32 @@ static const NSInteger TKAutoAdvancesMax = 5;
     }
 }
 
-// double tap saves, and if signed in with writes enabled, also likes on TikTok
-- (void)videoCellDidDoubleTap:(TKVideoCell *)cell
+- (void)setLike:(BOOL)on cell:(TKVideoCell *)cell
 {
-    [self viewerIsHere];
-    [self saveVideoOf:cell];
-    if ([TKSession sharedSession].signedIn && [TKSettings allowAccountWrites] && cell.video.videoId.length) {
-        [TKTikTok diggVideoId:cell.video.videoId type:1 completion:^(BOOL ok, NSError *error) {
-            if (ok) [cell showToast:L(@"Liked on TikTok")];
-        }];
-    }
+    [self viewerIsHere]; TKVideo *video=cell.video;
+    if (![TKSession sharedSession].signedIn) { [TKUtils alertWithTitle:L(@"Sign in") message:L(@"Sign in to use TikTok account actions.")]; return; }
+    if (on && video.likeStateKnown && video.liked) { [cell showLikeBurst]; return; }
+    if (!self.pendingLikes) self.pendingLikes=[NSMutableSet set];
+    NSString *key=[NSString stringWithFormat:@"%@:%@",[TKSession sharedSession].token,video.videoId];
+    if ([self.pendingLikes containsObject:key]) return;
+    [self.pendingLikes addObject:key]; [cell updateLikeStateBusy:YES];
+    NSString *token=[TKSession sharedSession].token;
+    [TKTikTok diggVideoId:video.videoId type:on ? 1 : 0 completion:^(BOOL ok,NSError *error){
+        [self.pendingLikes removeObject:key];
+        if (![token isEqualToString:[TKSession sharedSession].token]) return;
+        if (ok) {
+            BOOL changed=!video.likeStateKnown || video.liked!=on;
+            video.likeStateKnown=YES; video.liked=on;
+            if(changed)video.likes=MAX(0,video.likes+(on ? 1 : -1));
+        }
+        if (cell.video!=video) return;
+        [cell updateLikeStateBusy:NO];
+        if(ok) { if(on)[cell showLikeBurst]; [cell showToast:on ? L(@"Liked on TikTok") : L(@"Like removed on TikTok")]; }
+        else [TKUtils alertWithTitle:L(@"Action not confirmed") message:error.localizedDescription];
+    }];
 }
+- (void)videoCellDidTapLike:(TKVideoCell *)cell { [self setLike:!(cell.video.likeStateKnown && cell.video.liked) cell:cell]; }
+- (void)videoCellDidDoubleTap:(TKVideoCell *)cell { [self setLike:YES cell:cell]; }
 
 - (void)videoCellDidTapComments:(TKVideoCell *)cell
 {
@@ -714,7 +732,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     [sheet addButtonWithTitle:L(@"Save and organize")]; [actions addObject:@(TKVideoMenuOrganize)];
     if(cell.video.author.length) { [sheet addButtonWithTitle:L(@"Hide this creator")]; [actions addObject:@(TKVideoMenuBlock)]; }
     if ([TKSession sharedSession].signedIn && [TKSettings allowAccountWrites]) {
-        [sheet addButtonWithTitle:L(@"Like on TikTok")];
+        [sheet addButtonWithTitle:cell.video.likeStateKnown && cell.video.liked ? L(@"Unlike on TikTok") : L(@"Like on TikTok")];
         [actions addObject:@(TKVideoMenuLike)];
     }
     [sheet addButtonWithTitle:L(@"Not interested")];
@@ -765,13 +783,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
             break;
         }
         case TKVideoMenuLike:
-            if (![TKSettings allowAccountWrites]) {
-                [TKUtils alertWithTitle:L(@"Actions disabled") message:L(@"Enable 'Allow actions on account' in Settings to like videos directly on TikTok.")];
-            } else {
-                [TKTikTok diggVideoId:v.videoId type:1 completion:^(BOOL ok, NSError *error) {
-                    [cell showToast:ok ? L(@"Liked on TikTok") : L(@"Failed to like")];
-                }];
-            }
+            [self videoCellDidTapLike:cell];
             break;
         case TKVideoMenuNotInterested:
             if (!self.fixedMode && [self.feed respondsToSelector:@selector(noteNotInterested:)]) [(id)self.feed noteNotInterested:v];

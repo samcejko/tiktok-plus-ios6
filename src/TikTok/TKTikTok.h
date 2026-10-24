@@ -60,9 +60,12 @@
 + (TKHTTPTask *)likedVideosWithCount:(NSInteger)count completion:(void (^)(NSArray *videos, NSError *error))completion;
 + (TKHTTPTask *)notificationsWithCount:(NSInteger)count completion:(void (^)(NSArray *notifications, NSError *error))completion;
 
-// Logged-in writes (Phase 3: like, follow, comment)
+// User-triggered account actions. Never automatically retried.
 + (TKHTTPTask *)diggVideoId:(NSString *)videoId type:(NSInteger)type completion:(void (^)(BOOL success, NSError *error))completion;
 + (TKHTTPTask *)followUserId:(NSString *)userId secUid:(NSString *)secUid type:(NSInteger)type completion:(void (^)(BOOL success, NSError *error))completion;
 + (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text completion:(void (^)(BOOL success, NSDictionary *comment, NSError *error))completion;
 
++ (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text replyTo:(NSString *)commentId completion:(void (^)(BOOL success, NSDictionary *comment, NSError *error))completion;
++ (TKHTTPTask *)likeComment:(TKComment *)comment videoId:(NSString *)videoId on:(BOOL)on completion:(void (^)(BOOL success, NSError *error))completion;
++ (TKHTTPTask *)deleteComment:(TKComment *)comment completion:(void (^)(BOOL success, NSError *error))completion;
 @end

@@ -58,6 +58,8 @@ static FourCharCode TKFourCC(const char *s)
 @property (nonatomic, strong) UILabel *errorLabel;
 @property (nonatomic, strong) UILabel *noteLabel;
 @property (nonatomic, strong) UILabel *toastLabel;
+@property (nonatomic, strong) UIButton *likeButton;
+@property (nonatomic, strong) UILabel *likeCountLabel;
 @property (nonatomic, strong) UIButton *saveButton;
 @property (nonatomic, strong) UILabel *saveCountLabel;
 @property (nonatomic, strong) UIButton *commentsButton;
@@ -150,6 +152,10 @@ static FourCharCode TKFourCC(const char *s)
         _noteLabel.layer.masksToBounds = YES;
         _noteLabel.hidden = YES;
 
+        _likeButton = [self iconButton:[[TKTheme shared] heartIconFilled:NO color:[UIColor whiteColor] size:34] action:@selector(tapLike)];
+        _likeCountLabel = [self labelBold:YES size:12 color:[UIColor whiteColor]];
+        _likeCountLabel.textAlignment = NSTextAlignmentCenter;
+        _likeButton.accessibilityLabel=L(@"Like on TikTok");
         _saveButton = [self iconButton:[[TKTheme shared] starIconFilled:NO color:[UIColor whiteColor] size:34] action:@selector(tapSave)];
         _saveCountLabel = [self labelBold:YES size:12 color:[UIColor whiteColor]];
         _saveCountLabel.textAlignment = NSTextAlignmentCenter;
@@ -201,7 +207,7 @@ static FourCharCode TKFourCC(const char *s)
         // icon-only buttons: name them for VoiceOver (and the debug "press" command)
         _authorButton.accessibilityLabel = L(@"Profile");
         _avatarButton.accessibilityLabel = L(@"Profile");
-        _saveButton.accessibilityLabel = L(@"Save");
+        _saveButton.accessibilityLabel = L(@"Save locally");
         _commentsButton.accessibilityLabel = L(@"Comments");
 
         for (UILabel *l in @[ _authorLabel, _musicLabel, _saveCountLabel, _commentsCountLabel ]) l.layer.shadowOpacity = 0.6, l.layer.shadowRadius = 2, l.layer.shadowOffset = CGSizeMake(0, 1);
@@ -283,12 +289,16 @@ static FourCharCode TKFourCC(const char *s)
     // the page fills the screen: everything anchored to its bottom moves up over the home indicator (iOS 11+)
     b.size.height -= TKSafeAreaInsets(self).bottom;
     CGFloat railX = b.size.width - 64;
-    CGFloat y = b.size.height - 240;
-    self.saveButton.frame = CGRectMake(railX, y, 48, 48);
-    self.saveCountLabel.frame = CGRectMake(railX - 6, y + 48, 60, 16);
-    self.commentsButton.frame = CGRectMake(railX, y + 74, 48, 48);
-    self.commentsCountLabel.frame = CGRectMake(railX - 6, y + 122, 60, 16);
-    self.discButton.center = CGPointMake(railX + 24, y + 148 + TKDiscSize / 2);    // (above the scrubbing strip)
+    BOOL compact=b.size.height<420;
+    CGFloat y = b.size.height - (compact ? 230 : 300);
+    self.discButton.hidden=compact; self.avatarButton.hidden=compact; self.liveBadge.hidden=compact || !self.video.authorLiveRoom.length;
+    self.likeButton.frame = CGRectMake(railX,y,48,48);
+    self.likeCountLabel.frame = CGRectMake(railX-6,y+44,60,16);
+    self.saveButton.frame = CGRectMake(railX, y+126, 48, 48);
+    self.saveCountLabel.frame = CGRectMake(railX - 6, y + 170, 60, 16);
+    self.commentsButton.frame = CGRectMake(railX, y + 62, 48, 48);
+    self.commentsCountLabel.frame = CGRectMake(railX - 6, y + 106, 60, 16);
+    self.discButton.center = CGPointMake(railX + 24, y + 196 + TKDiscSize / 2);    // (above the scrubbing strip)
     CGFloat textW = b.size.width - 24 - 70;
     self.musicLabel.frame = CGRectMake(14, b.size.height - 44, textW, 16);
     CGSize ms = [self.musicLabel.text ?: @"" sizeWithFont:self.musicLabel.font];
@@ -377,7 +387,8 @@ static FourCharCode TKFourCC(const char *s)
     self.subtitleURL = nil;
     self.subtitleLabel.hidden = YES;
     self.swipeLeft.enabled = video.author.length > 0;
-    self.saveCountLabel.text = video.likes ? [TKUtils formatCount:video.likes] : L(@"Save");
+    self.saveCountLabel.text = L(@"Local");
+    [self updateLikeStateBusy:NO];
     self.commentsCountLabel.text = video.commentCount ? [TKUtils formatCount:video.commentCount] : @"";
     [self updateSavedState:[TKSettings isSaved:video.videoId]];
     self.avatarButton.hidden = !video.authorAvatarURL.length;
@@ -842,7 +853,7 @@ static FourCharCode TKFourCC(const char *s)
 }
 - (void)setCleanMode:(BOOL)clean
 {
-    for (UIView *v in @[self.authorLabel,self.authorButton,self.avatarButton,self.liveBadge,self.captionView,self.musicLabel,self.musicButton,self.discButton,self.saveButton,self.saveCountLabel,self.commentsButton,self.commentsCountLabel,self.subtitleLabel]) {
+    for (UIView *v in @[self.authorLabel,self.authorButton,self.avatarButton,self.liveBadge,self.captionView,self.musicLabel,self.musicButton,self.discButton,self.likeButton,self.likeCountLabel,self.saveButton,self.saveCountLabel,self.commentsButton,self.commentsCountLabel,self.subtitleLabel]) {
         v.alpha=clean ? 0 : 1; v.userInteractionEnabled=!clean;
     }
 }
@@ -923,13 +934,22 @@ static FourCharCode TKFourCC(const char *s)
 
 - (void)doubleTapped:(UITapGestureRecognizer *)g
 {
-    [self showSaveBurstAt:[g locationInView:self]];
     [self.delegate videoCellDidDoubleTap:self];
 }
 
-- (void)showSaveBurstAt:(CGPoint)p
+- (void)tapLike { [self.delegate videoCellDidTapLike:self]; }
+- (void)updateLikeStateBusy:(BOOL)busy
 {
-    UIImageView *star = [[UIImageView alloc] initWithImage:[[TKTheme shared] starIconFilled:YES color:[[TKTheme shared] accentColor] size:96]];
+    BOOL liked=self.video.likeStateKnown && self.video.liked;
+    [self.likeButton setImage:[[TKTheme shared] heartIconFilled:liked color:liked ? [UIColor colorWithRed:1 green:.2 blue:.3 alpha:1] : [UIColor whiteColor] size:34] forState:UIControlStateNormal];
+    self.likeButton.enabled=!busy; self.likeButton.alpha=busy ? .45 : 1;
+    self.likeButton.accessibilityLabel=liked ? L(@"Unlike on TikTok") : L(@"Like on TikTok");
+    self.likeCountLabel.text=[TKUtils formatCount:self.video.likes];
+}
+- (void)showLikeBurst { [self showLikeBurstAt:CGPointMake(CGRectGetMidX(self.bounds),CGRectGetMidY(self.bounds))]; }
+- (void)showLikeBurstAt:(CGPoint)p
+{
+    UIImageView *star = [[UIImageView alloc] initWithImage:[[TKTheme shared] heartIconFilled:YES color:[UIColor colorWithRed:1 green:.2 blue:.3 alpha:1] size:96]];
     star.center = p;
     star.alpha = 0;
     star.transform = CGAffineTransformMakeScale(0.4, 0.4);
@@ -1000,7 +1020,6 @@ static FourCharCode TKFourCC(const char *s)
 
 - (void)simulateDoubleTap
 {
-    [self showSaveBurstAt:CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds))];
     [self.delegate videoCellDidDoubleTap:self];
 }
 - (void)simulateTap { [self togglePlay]; }

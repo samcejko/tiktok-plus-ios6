@@ -1,3 +1,11 @@
+## 0.5.0 (12) — account actions (manual live validation pending)
+
+- Separate TikTok heart/like counter from clearly labeled local saved posts; double tap requests a TikTok like.
+- Direct signed-in like/unlike, follow/unfollow, comment/reply, comment like/unlike and own-comment deletion requests; server acknowledgement is required before changing UI state.
+- Preserve failed/cancelled drafts in memory, guard account/video changes and block duplicate in-flight actions. POSTs use fresh account verification and CSRF/device context; no automatic retries, redirects or stale-socket replay.
+- Correct Following endpoint and required parameters. Account feeds may still be refused by TikTok.
+- Classic iOS 6 controls, Czech/English, compact landscape action rail and protocol fixtures. Automated testing never sends real account writes.
+
 # Changelog
 
 ## 0.4.0 (2026-10-17)

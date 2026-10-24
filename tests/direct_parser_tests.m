@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "TKDirectParser.h"
+#import "TKAccountAction.h"
 #import "TKWebSignature.h"
 #import "TKCommon.h"
 #import "../src/Util/TKVideoLibrary.h"
@@ -115,6 +116,47 @@ int TKRunDirectParserTests(void)
         check(![TKVideoLibrary collectionName:@"\n"], "empty collection rejected");
         check(![TKVideoLibrary collectionName:@"bad\nname"], "collection control characters rejected");
         check(![TKVideoLibrary collectionName:[@"x" stringByPaddingToLength:61 withString:@"x" startingAtIndex:0]], "overlong collection name rejected");
+        NSDictionary *like=[TKAccountAction request:@"like" parameters:@{@"video":@"1234567890123456789",@"on":@YES}];
+        NSDictionary *unlike=[TKAccountAction request:@"like" parameters:@{@"video":@"1234567890123456789",@"on":@NO}];
+        check([like[@"params"][@"type"] isEqual:@"1"] && [unlike[@"params"][@"type"] isEqual:@"0"], "video like and unlike are different account actions");
+        check([like[@"path"] isEqual:@"/api/commit/item/digg/"], "like uses allowlisted write endpoint");
+        check(![TKAccountAction request:@"like" parameters:@{@"video":@"../evil",@"on":@YES}], "write rejects nonnumeric target");
+        check(![TKAccountAction request:@"like" parameters:@{@"video":@"123"}], "missing desired state rejected");
+        check(![TKAccountAction request:@"like" parameters:@{@"video":@"123",@"on":@"false"}], "string state cannot silently become true");
+        check(![TKAccountAction request:@"arbitrary/path" parameters:@{}], "unknown action rejected");
+        check(![TKAccountAction accepted:@{} request:like userId:@"42"], "empty write response is never success");
+        check(![TKAccountAction accepted:@{@"success":@YES} request:like userId:@"42"], "missing explicit status rejected");
+        check(![TKAccountAction accepted:@{@"status_code":@8} request:like userId:@"42"], "server-rejected write stays unsuccessful");
+        check(![TKAccountAction accepted:@{@"status_code":@0,@"is_digg":@NO} request:like userId:@"42"], "contradictory like acknowledgement rejected");
+        check([TKAccountAction accepted:@{@"status_code":@0,@"is_digg":@YES} request:like userId:@"42"], "explicit like acknowledgement accepted");
+        check([TKAccountAction accepted:@{@"status_code":@0,@"is_digg":@NO} request:unlike userId:@"42"], "unlike acknowledgement accepted");
+        check(![TKAccountAction accepted:@{@"status_code":@0} request:@{} userId:@"42"], "unknown acknowledgement contract rejected");
+        NSDictionary *follow=[TKAccountAction request:@"follow" parameters:@{@"user":@"42",@"sec":@"MS4wLjAB_fixture",@"on":@YES}];
+        check([follow[@"params"][@"action_type"] isEqual:@"1"] && [follow[@"params"][@"fromWeb"] isEqual:@"1"], "follow carries required web parameters");
+        check(![TKAccountAction request:@"follow" parameters:@{@"user":@"42",@"sec":@"bad\nheader",@"on":@YES}], "follow secondary ID rejects injection");
+        check(![TKAccountAction accepted:@{@"status_code":@0,@"follow_status":@0} request:follow userId:@"42"], "follow status must match requested action");
+        check([TKAccountAction accepted:@{@"status_code":@0,@"follow_status":@3} request:follow userId:@"42"], "mutual follow counts as followed");
+        NSDictionary *clike=[TKAccountAction request:@"commentLike" parameters:@{@"video":@"123",@"comment":@"456",@"on":@NO}];
+        check([clike[@"params"][@"digg_type"] isEqual:@"2"], "comment unlike has its own protocol value");
+        NSDictionary *publish=[TKAccountAction request:@"publish" parameters:@{@"video":@"123",@"text":@"  Český text 😀  ",@"comment":@"456"}];
+        check([publish[@"params"][@"text"] isEqual:@"Český text 😀"], "Unicode draft text preserved and trimmed");
+        check([publish[@"params"][@"reply_id"] isEqual:@"456"] && [publish[@"params"][@"text_extra"] isEqual:@"[]"], "reply targets actual parent comment");
+        check(![TKAccountAction request:@"publish" parameters:@{@"video":@"123",@"text":@"  \n"}], "blank comment cannot be sent");
+        check(![TKAccountAction request:@"publish" parameters:@{@"video":@"123",@"text":[@"x" stringByPaddingToLength:2201 withString:@"x" startingAtIndex:0]}], "overlong comment rejected before network");
+        NSDictionary *posted=@{@"status_code":@0,@"comment":@{@"cid":@"789",@"text":@"Český text 😀",@"aweme_id":@"123",@"user":@{@"uid":@"42"}}};
+        check([TKAccountAction accepted:posted request:publish userId:@"42"], "posted comment must include real ID and current author");
+        check(![TKAccountAction accepted:posted request:publish userId:@"43"], "another account cannot acknowledge our comment");
+        check(![TKAccountAction accepted:@{@"status_code":@0} request:publish userId:@"42"], "status-only comment response cannot create fake comment");
+        check(![TKAccountAction request:@"deleteComment" parameters:@{@"comment":@"456"}], "delete requires verified ownership metadata");
+        check([TKAccountAction request:@"deleteComment" parameters:@{@"comment":@"456",@"owner":@"42"}]!=nil, "own comment delete request supported");
+        item[@"id"]=@"123";item[@"digged"]=@YES;
+        check([[TKDirectParser video:item maxHeight:1280][@"liked"] boolValue], "TikTok liked state preserved separately from local save");
+        [item removeObjectForKey:@"digged"];
+        check(![TKDirectParser video:item maxHeight:1280][@"liked"], "missing liked state remains unknown");
+        check([[TKDirectParser profile:@{@"user":@{@"uniqueId":@"fixture",@"id":@"42",@"relation":@3}}][@"relation"] intValue]==3, "profile relationship preserved");
+        check(![TKDirectParser profile:@{@"user":@{@"uniqueId":@"fixture",@"id":@"42"}}][@"relation"], "missing relationship remains unknown");
+        NSDictionary *commentState=[TKDirectParser comment:@{@"cid":@"456",@"text":@"test",@"user_digged":@1,@"user":@{@"uid":@"42"}}];
+        check([commentState[@"userId"] isEqual:@"42"] && [commentState[@"liked"] boolValue], "comment owner and liked state preserved");
         fprintf(stdout,"Direct parser and library: %u checks, %u failures\n",checks,failures);
     }
     return failures ? 1 : 0;

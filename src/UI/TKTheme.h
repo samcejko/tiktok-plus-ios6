@@ -76,6 +76,7 @@
 - (UIImage *)searchIconWhite;               // magnifier over the feed
 - (UIImage *)discImageWithSize:(CGFloat)size;   // a black record with grooves (the sound of a video)
 // misc
+- (UIImage *)heartIconFilled:(BOOL)filled color:(UIColor *)color size:(CGFloat)size;
 - (UIImage *)starIconFilled:(BOOL)filled color:(UIColor *)color size:(CGFloat)size;
 - (UIImage *)liveDotImage;
 - (UIImage *)emoteIcon;                     // smiley for the emote picker button

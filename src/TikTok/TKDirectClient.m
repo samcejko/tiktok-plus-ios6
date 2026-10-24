@@ -1,5 +1,6 @@
 #import "TKDirectClient.h"
 #import "TKDirectParser.h"
+#import "TKAccountAction.h"
 #import "TKWebSignature.h"
 #import "TKKeychain.h"
 #import "TKSession.h"
@@ -18,6 +19,8 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
 @property (nonatomic, strong) NSMutableArray *warmWaiters;
 @property (nonatomic, strong) NSMutableDictionary *pending;
 @property (nonatomic, strong) NSMutableDictionary *liveAuthors;
+@property (nonatomic, strong) NSMutableSet *activeWrites;
+@property (nonatomic, strong) NSDictionary *lastAction;
 @end
 
 @implementation TKDirectClient
@@ -26,7 +29,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     static TKDirectClient *client; static dispatch_once_t once;
     dispatch_once(&once, ^{
         client = [[self alloc] init]; client.anonymousCookies = [NSMutableArray array]; client.pending = [NSMutableDictionary dictionary];
-        client.liveAuthors = [NSMutableDictionary dictionary]; client.warmWaiters=[NSMutableArray array];
+        client.liveAuthors = [NSMutableDictionary dictionary]; client.warmWaiters=[NSMutableArray array]; client.activeWrites=[NSMutableSet set];
         NSString *saved = [[NSUserDefaults standardUserDefaults] boolForKey:@"direct.signedOut"] ? nil : [TKKeychain secureStringForKey:TKDirectKey];
         NSDictionary *d = TKDict([TKUtils JSONObjectFromData:[saved dataUsingEncoding:NSUTF8StringEncoding]]);
         NSError *error = nil; NSArray *jar = [TKDirectParser cookiesFromString:TKStr(d[@"cookies"]) ?: @"" error:&error];
@@ -95,6 +98,93 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     }];
 }
 + (NSDictionary *)scopeFromBody:(NSData *)body { return [TKDirectParser scopeFromHTML:[[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding]]; }
++ (void)addDeviceParameters:(NSMutableDictionary *)q context:(NSDictionary *)ctx jar:(NSArray *)jar
+{
+    [q addEntriesFromDictionary:@{@"aid":@"1988",@"app_name":@"tiktok_web",@"device_platform":@"web_pc",@"language":@"en",@"app_language":@"en",@"browser_language":@"en-US",@"browser_name":@"Mozilla",@"browser_online":@"true",@"browser_platform":@"Win32",@"browser_version":[TKWebUA substringFromIndex:8],@"channel":@"tiktok_web",@"cookie_enabled":@"true",@"focus_state":@"true",@"history_len":@"1",@"is_fullscreen":@"false",@"is_page_visible":@"true",@"os":@"windows",@"priority_region":@"",@"referer":@"",@"region":TKStr(ctx[@"region"]) ?: @"CZ",@"screen_height":@"1080",@"screen_width":@"1920",@"tz_name":@"Europe/Prague",@"webcast_language":@"en",@"data_collection_enabled":@"true",@"user_is_login":[self shared].accountCookies.count ? @"true" : @"false"}];
+    for (NSString *key in @[@"wid",@"odinId",@"webIdCreatedTime"]) {
+        NSString *value=TKStr(ctx[key]); if (value.length) q[[@{@"wid":@"device_id",@"odinId":@"odinId",@"webIdCreatedTime":@"WebIdLastTime"} objectForKey:key]]=value;
+    }
+    for (NSHTTPCookie *cookie in jar) {
+        if (cookie.expiresDate && [cookie.expiresDate timeIntervalSinceNow]<=0) continue;
+        if ([cookie.name isEqualToString:@"msToken"]) q[@"msToken"]=cookie.value;
+        if ([cookie.name isEqualToString:@"s_v_web_id"]) { q[@"verifyFp"]=cookie.value; q[@"fp"]=cookie.value; }
+    }
+}
++ (NSDictionary *)actionDiagnostics { return [self shared].lastAction ?: @{}; }
++ (TKHTTPTask *)checkActionReadiness:(void (^)(NSDictionary *))completion
+{
+    TKHTTPTask *outer=[[TKHTTPTask alloc] init]; __block TKHTTPTask *part=nil;
+    TKDirectClient *c=[self shared]; NSString *token=TKStr(c.session[@"token"]);
+    outer.cancelBlock=^{[part cancel];};
+    part=[self validate:^(BOOL valid,NSDictionary *user,NSError *error){
+        if(outer.isCancelled)return;
+        if(!valid) { outer.cancelBlock=nil; completion(@{@"verified":@NO,@"errorCode":@(error.code)}); return; }
+        NSMutableArray *jar=[c.accountCookies mutableCopy];
+        part=[self requestURL:@"https://www.tiktok.com/explore" jar:jar completion:^(id scope,NSDictionary *h,NSError *pageError){
+            if(outer.isCancelled)return; outer.cancelBlock=nil;
+            NSDictionary *ctx=TKDict(TKDict(scope)[@"webapp.app-context"]); NSString *csrf=TKStr(ctx[@"csrfToken"]);
+            if(!csrf.length)for(NSString *pair in [[self cookieHeader:jar URL:[NSURL URLWithString:@"https://www.tiktok.com/"]] componentsSeparatedByString:@"; "])if([pair hasPrefix:@"tt_csrf_token="]) { csrf=[pair substringFromIndex:14]; break; }
+            BOOL same=[token isEqualToString:TKStr(c.session[@"token"])];
+            completion(@{@"verified":@(same),@"csrfAvailable":@(csrf.length>0),@"deviceContextAvailable":@(TKStr(ctx[@"wid"]).length>0),@"pageErrorCode":@(pageError.code),@"writesSent":@0});
+        }];
+    }]; return outer;
+}
+
++ (TKHTTPTask *)performAction:(NSString *)action parameters:(NSDictionary *)parameters completion:(TKJSONCompletion)completion
+{
+    TKDirectClient *c=[self shared]; NSDictionary *spec=[TKAccountAction request:action parameters:parameters];
+    NSString *token=TKStr(c.session[@"token"]), *uid=TKStr(TKDict(c.session[@"user"])[@"userId"]);
+    NSError *invalid=nil;
+    if (!spec) invalid=TKMakeError(TKErrorAPI,L(@"Invalid account action or comment. Comments can contain up to 2200 characters."));
+    else if (!token.length || !uid.length || !c.accountCookies.count) invalid=TKMakeError(TKErrorAuth,L(@"Sign in to use TikTok account actions."));
+    else if ([action isEqualToString:@"deleteComment"] && ![TKStr(parameters[@"owner"]) isEqualToString:uid]) invalid=TKMakeError(TKErrorAuth,L(@"Only your own comments can be deleted."));
+    else if ([action isEqualToString:@"follow"] && [TKStr(parameters[@"user"]) isEqualToString:uid]) invalid=TKMakeError(TKErrorAPI,L(@"You cannot follow your own account."));
+    NSString *lock=[NSString stringWithFormat:@"%@:%@:%@",token,action,spec[@"target"]];
+    if (!invalid && [c.activeWrites containsObject:lock]) invalid=TKMakeError(TKErrorAPI,L(@"This action is already being sent."));
+    if (invalid) return [self immediate:nil error:invalid completion:completion];
+    [c.activeWrites addObject:lock];
+    TKHTTPTask *outer=[[TKHTTPTask alloc] init]; __block TKHTTPTask *part=nil;
+    // Cancel never retries or undoes an already transmitted POST.
+    outer.cancelBlock=^{ [part cancel]; [c.activeWrites removeObject:lock]; };
+    BOOL (^sameSession)(void)=^BOOL{ return [TKStr(c.session[@"token"]) isEqualToString:token]; };
+    void (^finish)(id,NSError *)=^(id result,NSError *error){
+        [c.activeWrites removeObject:lock]; if (outer.isCancelled) return; outer.cancelBlock=nil;
+        if (!sameSession()) { completion(nil,0,TKMakeError(TKErrorCancelled,L(@"Session changed."))); return; }
+        completion(result,error ? 0 : 200,error);
+    };
+    part=[self validate:^(BOOL valid,NSDictionary *user,NSError *error){
+        if (outer.isCancelled) return;
+        if (!sameSession() || !valid || ![TKStr(user[@"userId"]) isEqualToString:uid]) { finish(nil,error ?: TKMakeError(TKErrorAuth,L(@"TikTok could not verify this session. Export fresh cookies while signed in."))); return; }
+        NSMutableArray *jar=[c.accountCookies mutableCopy];
+        // Get a fresh token/device context with this exact account cookie snapshot.
+        part=[self requestURL:@"https://www.tiktok.com/explore" jar:jar completion:^(id scope,NSDictionary *headers,NSError *pageError){
+            if (outer.isCancelled) return;
+            if (!sameSession()) { finish(nil,TKMakeError(TKErrorCancelled,L(@"Session changed."))); return; }
+            NSDictionary *ctx=TKDict(TKDict(scope)[@"webapp.app-context"]);
+            NSString *csrf=TKStr(ctx[@"csrfToken"]), *contextUID=TKStr(TKDict(ctx[@"user"])[@"uid"]);
+            NSURL *base=[NSURL URLWithString:@"https://www.tiktok.com/"];
+            if(!csrf.length)for(NSString *pair in [[self cookieHeader:jar URL:base] componentsSeparatedByString:@"; "])if([pair hasPrefix:@"tt_csrf_token="]) { csrf=[pair substringFromIndex:14]; break; }
+            if (pageError || !csrf.length || csrf.length>4096 || [csrf rangeOfCharacterFromSet:[NSCharacterSet controlCharacterSet]].location!=NSNotFound || !TKStr(ctx[@"wid"]).length || (contextUID.length && ![contextUID isEqualToString:uid])) {
+                finish(nil,pageError ?: TKMakeError(TKErrorAPI,L(@"TikTok did not provide the account action token. Open TikTok in your browser and refresh the session."))); return;
+            }
+            NSMutableDictionary *q=[NSMutableDictionary dictionary]; [self addDeviceParameters:q context:ctx jar:jar]; [q addEntriesFromDictionary:spec[@"params"]];
+            NSString *encoded=[self query:q]; encoded=[encoded stringByAppendingFormat:@"&X-Bogus=%@",[TKUtils urlEncode:TKWebSignature(encoded,TKWebUA,(uint32_t)[[NSDate date] timeIntervalSince1970])]];
+            NSString *url=[NSString stringWithFormat:@"https://www.tiktok.com%@?%@",spec[@"path"],encoded];
+            NSDictionary *h=@{@"User-Agent":TKWebUA,@"Referer":@"https://www.tiktok.com/",@"Origin":@"https://www.tiktok.com",@"Accept":@"application/json",@"Content-Type":@"application/x-www-form-urlencoded",@"tt-csrf-token":csrf,@"Cookie":[self cookieHeader:jar URL:[NSURL URLWithString:url]]};
+            part=[TKHTTP request:@"POST" url:url headers:h body:[NSData data] retries:0 completion:^(NSInteger status,NSData *body,NSDictionary *responseHeaders,NSError *writeError){
+                if (outer.isCancelled) return;
+                NSDictionary *response=TKDict([TKUtils JSONObjectFromData:body]);
+                BOOL accepted=!writeError && status==200 && [TKAccountAction accepted:response request:spec userId:uid];
+                if(sameSession())c.lastAction=@{@"action":action,@"httpStatus":@(status),@"errorCode":@(writeError.code),@"statusCode":@([response[@"status_code"] isKindOfClass:[NSNumber class]] ? TKInt(response[@"status_code"]) : -1),@"confirmed":@(accepted)};
+                if (!accepted) {
+                    finish(nil,TKMakeError(TKErrorAPI,L(@"TikTok did not confirm this action. Refresh before trying again; it may already have been received."))); return;
+                }
+                finish(response,nil);
+            }];
+        }];
+    }];
+    return outer;
+}
 + (TKHTTPTask *)api:(NSString *)path params:(NSDictionary *)params jar:(NSMutableArray *)jar completion:(TKJSONCompletion)completion
 {
     NSMutableDictionary *q=[@{@"aid":@"1988"} mutableCopy];
@@ -102,13 +192,11 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     BOOL minimal=[path hasPrefix:@"/api/comment/"] || [path isEqualToString:@"/api/search/general/sug/"] || [path isEqualToString:@"/api/explore/item_list/"];
     if (!minimal) [q addEntriesFromDictionary:@{@"app_name":@"tiktok_web",@"device_platform":@"web_pc",@"language":@"en"}];
     [q addEntriesFromDictionary:params ?: @{}];
-    BOOL signedAPI = [path rangeOfString:@"/search/general/full/"].location!=NSNotFound || [path rangeOfString:@"/challenge/"].location!=NSNotFound || [path rangeOfString:@"/music/"].location!=NSNotFound || [path rangeOfString:@"/feed/"].location!=NSNotFound || [path rangeOfString:@"/recommend/"].location!=NSNotFound || [path rangeOfString:@"/favorite/"].location!=NSNotFound;
+    BOOL signedAPI = [path rangeOfString:@"/search/general/full/"].location!=NSNotFound || [path rangeOfString:@"/challenge/"].location!=NSNotFound || [path rangeOfString:@"/music/"].location!=NSNotFound || [path rangeOfString:@"/feed/"].location!=NSNotFound || [path rangeOfString:@"/recommend/"].location!=NSNotFound || [path rangeOfString:@"/favorite/"].location!=NSNotFound || [path hasPrefix:@"/api/following/"];
     if (signedAPI) {
         NSDictionary *ctx=[self shared].webContext;
         NSString *from=[path hasPrefix:@"/api/challenge/"]?@"hashtag":([path hasPrefix:@"/api/music/"]?@"music":([path rangeOfString:@"following"].location!=NSNotFound?@"following":([path rangeOfString:@"favorite"].location!=NSNotFound?@"profile":@"fyp")));
-        [q addEntriesFromDictionary:@{@"WebIdLastTime":@((long long)[[NSDate date] timeIntervalSince1970]),@"app_language":@"en",@"browser_language":@"en-US",@"browser_name":@"Mozilla",@"browser_online":@"true",@"browser_platform":@"Win32",@"browser_version":[TKWebUA substringFromIndex:8],@"channel":@"tiktok_web",@"cookie_enabled":@"true",@"focus_state":@"true",@"from_page":from,@"history_len":@"1",@"is_fullscreen":@"false",@"is_page_visible":@"true",@"os":@"windows",@"priority_region":@"",@"referer":@"",@"region":TKStr(ctx[@"region"]) ?: @"CZ",@"screen_height":@"1080",@"screen_width":@"1920",@"tz_name":@"Europe/Prague",@"webcast_language":@"en"}];
-        if (TKStr(ctx[@"wid"]).length) q[@"device_id"]=TKStr(ctx[@"wid"]);
-        for (NSHTTPCookie *cookie in jar) if ([cookie.name isEqualToString:@"msToken"] && (!cookie.expiresDate || [cookie.expiresDate timeIntervalSinceNow]>0)) q[@"msToken"]=cookie.value;
+        [self addDeviceParameters:q context:ctx jar:jar]; q[@"from_page"]=from;
         [q addEntriesFromDictionary:params ?: @{}];
     }
     NSString *encoded=[self query:q];
@@ -245,8 +333,8 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     NSString *api=nil; NSMutableDictionary *p=[@{@"count":@(count)} mutableCopy]; BOOL account=NO;
     if ([path isEqualToString:@"/discover"]) { api=@"/api/explore/item_list/";p[@"categoryType"]=@(TKInt(q[@"cat"]) ?: 120); }
     else if ([path isEqualToString:@"/search"]) { api=@"/api/search/general/full/";p[@"keyword"]=TKStr(q[@"q"]) ?: @"";p[@"offset"]=q[@"offset"] ?: @0;p[@"search_source"]=@"normal_search";p[@"from_page"]=@"search"; }
-    else if ([path isEqualToString:@"/following"]) {api=@"/api/feed/following/";account=YES;}
-    else if ([path isEqualToString:@"/foryou"]) {api=@"/api/recommend/item_list/";account=YES;p[@"from_page"]=@"fyp";}
+    else if ([path isEqualToString:@"/following"]) {api=@"/api/following/item_list/";account=YES;[p addEntriesFromDictionary:@{@"cursor":@0,@"pullType":@1,@"level":@1,@"isResetCounterUsed":@"true",@"from_page":@"following"}];}
+    else if ([path isEqualToString:@"/foryou"]) {api=@"/api/recommend/item_list/";account=YES;p[@"from_page"]=@"fyp";p[@"pull_type"]=@0;p[@"coverFormat"]=@2;}
     else if ([path isEqualToString:@"/liked"]) {api=@"/api/favorite/item_list/";account=YES;p[@"secUid"]=[TKSession sharedSession].secUid ?: @"";p[@"cursor"]=@0;}
     if (!api || (account && ![TKSession sharedSession].signedIn)) return [self immediate:nil error:[self unavailable] completion:completion];
     return [self api:api params:p jar:jar completion:^(id json,NSInteger status,NSError *error) {
@@ -350,7 +438,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     NSString *s=[[NSString alloc] initWithData:[TKUtils JSONDataFromObject:d] encoding:NSUTF8StringEncoding];
     if(![TKKeychain setSecureString:s forKey:TKDirectKey])return NO;
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"direct.signedOut"];[[NSUserDefaults standardUserDefaults] synchronize];
-    c.session=d;c.accountCookies=[[TKDirectParser cookiesFromString:d[@"cookies"] error:nil] mutableCopy];return YES;
+    c.session=d;c.webContext=nil;c.lastAction=nil;c.accountCookies=[[TKDirectParser cookiesFromString:d[@"cookies"] error:nil] mutableCopy];return YES;
 }
 + (TKHTTPTask *)validate:(void (^)(BOOL,NSDictionary *,NSError *))completion
 {
@@ -369,7 +457,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
 + (void)signOut
 {
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"direct.signedOut"];[[NSUserDefaults standardUserDefaults] synchronize];
-    TKDirectClient *c=[self shared];c.session=nil;c.accountCookies=nil;[c.pending removeAllObjects];[c.liveAuthors removeAllObjects];
+    TKDirectClient *c=[self shared];c.session=nil;c.accountCookies=nil;c.webContext=nil;c.lastAction=nil;[c.pending removeAllObjects];[c.liveAuthors removeAllObjects];
     [TKKeychain setSecureString:nil forKey:TKDirectKey];
 }
 @end

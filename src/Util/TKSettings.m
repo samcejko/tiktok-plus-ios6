@@ -206,7 +206,7 @@ static const NSUInteger TKMaxSeen = 4000;
     [DEF setObject:seen forKey:@"seenVideos"];
 }
 
-+ (BOOL)allowAccountWrites { return NO; }
++ (BOOL)allowAccountWrites { return YES; }
 
 + (void)setAllowAccountWrites:(BOOL)value
 {

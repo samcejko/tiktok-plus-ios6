@@ -65,6 +65,7 @@
         @"lang":TKStr(it[@"textLanguage"]) ?: @"un", @"tags":tags, @"subtitles":subs,
         @"music":TKStr(music[@"title"]) ?: @"", @"musicId":TKStr(music[@"id"]) ?: @"", @"musicOriginal":music[@"original"] ?: @NO,
         @"musicAuthor":TKStr(music[@"authorName"]) ?: @"", @"musicCover":[self URLString:music[@"coverMedium"] ?: music[@"coverThumb"]]} mutableCopy];
+    if ([it[@"digged"] isKindOfClass:[NSNumber class]]) out[@"liked"]=@([it[@"digged"] boolValue]);
     if (images.count) {
         out[@"type"] = @"photo"; out[@"images"] = images; out[@"musicUrl"] = [self URLString:music[@"playUrl"]];
         if (![out[@"cover"] length]) out[@"cover"] = images[0];
@@ -93,20 +94,24 @@
 {
     NSDictionary *u = TKDict(info[@"user"]), *s = TKDict(info[@"statsV2"]) ?: TKDict(info[@"stats"]);
     if (!TKStr(u[@"uniqueId"]).length || !TKStr(u[@"id"]).length) return nil;
-    return @{@"handle":u[@"uniqueId"], @"id":u[@"id"], @"secUid":TKStr(u[@"secUid"]) ?: @"", @"name":TKStr(u[@"nickname"]) ?: @"",
+    NSMutableDictionary *out=[@{@"handle":u[@"uniqueId"], @"id":u[@"id"], @"secUid":TKStr(u[@"secUid"]) ?: @"", @"name":TKStr(u[@"nickname"]) ?: @"",
         @"bio":TKStr(u[@"signature"]) ?: @"", @"avatar":[self URLString:u[@"avatarLarger"] ?: u[@"avatarMedium"]],
         @"verified":u[@"verified"] ?: @NO, @"private":u[@"privateAccount"] ?: @NO, @"liveRoom":TKStr(u[@"roomId"]) ?: @"",
         @"followers":s[@"followerCount"] ?: @0, @"following":s[@"followingCount"] ?: @0, @"likes":s[@"heartCount"] ?: s[@"heart"] ?: @0,
-        @"videos":s[@"videoCount"] ?: @0, @"link":[self URLString:TKDict(u[@"bioLink"])[@"link"]]};
+        @"videos":s[@"videoCount"] ?: @0, @"link":[self URLString:TKDict(u[@"bioLink"])[@"link"]]} mutableCopy];
+    if ([u[@"relation"] isKindOfClass:[NSNumber class]] && TKInt(u[@"relation"])>=0 && TKInt(u[@"relation"])<=3) out[@"relation"]=u[@"relation"];
+    return out;
 }
 
 + (NSDictionary *)comment:(NSDictionary *)item
 {
     NSDictionary *c = TKDict(item), *u = TKDict(c[@"user"]);
     if (!TKStr(c[@"cid"]).length || !TKStr(c[@"text"]).length) return nil;
-    return @{@"cid":c[@"cid"], @"text":c[@"text"], @"author":TKStr(u[@"unique_id"]) ?: @"", @"authorName":TKStr(u[@"nickname"]) ?: @"",
+    NSMutableDictionary *out=[@{@"cid":c[@"cid"], @"text":c[@"text"], @"author":TKStr(u[@"unique_id"]) ?: @"", @"authorName":TKStr(u[@"nickname"]) ?: @"",
         @"avatar":[self URLString:u[@"avatar_thumb"]], @"time":c[@"create_time"] ?: @0, @"likes":c[@"digg_count"] ?: @0,
-        @"replies":c[@"reply_comment_total"] ?: @0, @"pinned":c[@"author_pin"] ?: @NO};
+        @"replies":c[@"reply_comment_total"] ?: @0, @"pinned":c[@"author_pin"] ?: @NO,@"userId":TKStr(u[@"uid"]) ?: @""} mutableCopy];
+    if ([c[@"user_digged"] isKindOfClass:[NSNumber class]]) out[@"liked"]=@([c[@"user_digged"] boolValue]);
+    return out;
 }
 
 + (NSArray *)cookiesFromString:(NSString *)input error:(NSError **)error

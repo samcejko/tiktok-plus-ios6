@@ -4,10 +4,11 @@
 @class TKVideoCell;
 
 @protocol TKVideoCellDelegate <NSObject>
+- (void)videoCellDidTapLike:(TKVideoCell *)cell;
 - (void)videoCellDidTapSave:(TKVideoCell *)cell;
 - (void)videoCellDidTapComments:(TKVideoCell *)cell;
 - (void)videoCellDidReachEnd:(TKVideoCell *)cell;        // one loop finished (for auto-advance / completion)
-- (void)videoCellDidDoubleTap:(TKVideoCell *)cell;       // double tap = save (the cell shows the star burst itself)
+- (void)videoCellDidDoubleTap:(TKVideoCell *)cell;       // double tap = like (controller confirms success before the heart burst)
 - (void)videoCell:(TKVideoCell *)cell didLongPressAt:(CGPoint)point;   // hold = the video's menu
 @optional
 - (void)videoCellDidBeginWatching:(TKVideoCell *)cell; // actual visible playback, never prefetching
@@ -20,7 +21,7 @@
 
 // One full-screen video page: AVPlayer behind, cover art until the first frame, the author/caption overlay (its
 // #hashtags and @mentions open their pages, its web links open where they lead), TikTok's captions, the right-hand
-// buttons with the sound's disc and a scrubber along the bottom edge. Gestures: tap = pause/play, double tap = save, hold = menu, swipe left = the
+// buttons with the sound's disc and a scrubber along the bottom edge. Gestures: tap = pause/play, double tap = like, hold = menu, swipe left = the
 // creator's profile, drag sideways along the bottom = seek. The feed controller owns resolve; the cell just plays.
 @interface TKVideoCell : UIView
 @property (nonatomic, weak) id<TKVideoCellDelegate> delegate;
@@ -49,6 +50,8 @@
 - (void)pausePlayback;
 - (NSTimeInterval)takeWatchedSeconds;       // real viewing time since the last call (loops add up, seeks do not)
 - (void)updateSavedState:(BOOL)saved;
+- (void)updateLikeStateBusy:(BOOL)busy;
+- (void)showLikeBurst;
 - (void)showError:(NSString *)message;
 - (void)showToast:(NSString *)message;      // a short note in the middle that fades
 - (UIView *)linkAnchorView;                 // the caption: where a sheet for a link of this page points on the iPad

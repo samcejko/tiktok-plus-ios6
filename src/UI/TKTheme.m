@@ -761,6 +761,20 @@ static UIImage *TKCapsuleImage(UIColor *top, UIColor *bottom, UIColor *stroke, C
     }];
 }
 
+- (UIImage *)heartIconFilled:(BOOL)filled color:(UIColor *)color size:(CGFloat)size
+{
+    return TKDrawImage(CGSizeMake(size,size), ^(CGContextRef ctx){
+        UIBezierPath *heart=[UIBezierPath bezierPath];
+        [heart moveToPoint:CGPointMake(size*.5,size*.89)];
+        [heart addCurveToPoint:CGPointMake(size*.09,size*.27) controlPoint1:CGPointMake(size*.10,size*.59) controlPoint2:CGPointMake(size*.01,size*.43)];
+        [heart addCurveToPoint:CGPointMake(size*.5,size*.24) controlPoint1:CGPointMake(size*.17,size*.06) controlPoint2:CGPointMake(size*.40,size*.07)];
+        [heart addCurveToPoint:CGPointMake(size*.91,size*.27) controlPoint1:CGPointMake(size*.60,size*.07) controlPoint2:CGPointMake(size*.83,size*.06)];
+        [heart addCurveToPoint:CGPointMake(size*.5,size*.89) controlPoint1:CGPointMake(size*.99,size*.43) controlPoint2:CGPointMake(size*.90,size*.59)];
+        [heart closePath]; [color setFill]; [color setStroke];
+        if(filled)[heart fill]; else { heart.lineWidth=MAX(1.5,size/14); [heart stroke]; }
+    });
+}
+
 - (UIImage *)starIconFilled:(BOOL)filled color:(UIColor *)color size:(CGFloat)size
 {
     CGFloat r = 0, g = 0, b = 0, a = 1;

@@ -76,7 +76,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
     if (s == SecServer) return L(@"TikTak+ connects directly to TikTok. No helper server is required. Session cookies stay on this device and are sent only to TikTok.");
     if (s == SecAccount) {
         if ([TKSession sharedSession].signedIn) {
-            return L(@"Account features depend on what TikTok makes available. Sending likes, follows and comments is not supported in this version.");
+            return L(@"Likes, follows and comments are sent directly under your TikTok account. Local saved posts and favorite creators stay on this device. TikTok may refuse account actions.");
         } else {
             return L(@"Drop ttsession.json or ttcookies.json into TikTak's Documents folder via iTunes or Filza to sign in.");
         }
@@ -174,20 +174,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         case 23: [TKSettings setRecordWatchHistory:sw.on]; break;
         case 30: [[TKTheme shared] setDark:sw.on]; break;
         case 40: [TKSettings setVerifyTLS:sw.on]; [TKSettings save]; break;
-        case 50: {
-            if (sw.on) {
-                UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Enable account actions?")
-                                                            message:L(@"Liking, following and commenting run directly under your account on TikTok's servers. Aggressive use may trigger rate limits or account flags. We recommend using a throwaway account.")
-                                                           delegate:self
-                                                  cancelButtonTitle:L(@"Cancel")
-                                                  otherButtonTitles:L(@"Enable"), nil];
-                a.tag = 50;
-                [a show];
-            } else {
-                [TKSettings setAllowAccountWrites:NO];
-            }
-            break;
-        }
+
     }
 }
 

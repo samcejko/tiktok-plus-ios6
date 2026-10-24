@@ -16,6 +16,8 @@
     v.webURL = TKStr(json[@"url"]);
     v.music = TKStr(json[@"music"]);
     v.likes = TKInt(json[@"likes"]);
+    v.likeStateKnown = [json[@"liked"] isKindOfClass:[NSNumber class]];
+    v.liked = v.likeStateKnown && TKBool(json[@"liked"]);
     v.commentCount = TKInt(json[@"comments"]);
     v.plays = TKInt(json[@"plays"]);
     v.durationSeconds = TKInt(json[@"duration"]);
@@ -134,6 +136,9 @@
     c.createdAt = TKDbl(json[@"time"]);
     c.text = TKStr(json[@"text"]) ?: @"";
     c.likes = TKInt(json[@"likes"]);
+    c.userId = TKStr(json[@"userId"]);
+    c.likeStateKnown = [json[@"liked"] isKindOfClass:[NSNumber class]];
+    c.liked = c.likeStateKnown && TKBool(json[@"liked"]);
     c.replyCount = TKInt(json[@"replies"]);
     c.pinned = TKBool(json[@"pinned"]);
     return c;
@@ -162,6 +167,8 @@
     p.link = TKStr(u[@"link"]);
     p.secUid = TKStr(u[@"secUid"]);
     p.userId = TKStr(u[@"id"]) ?: TKStr(u[@"uid"]);
+    p.followStateKnown = [u[@"relation"] isKindOfClass:[NSNumber class]];
+    p.followed = p.followStateKnown && (TKInt(u[@"relation"])==1 || TKInt(u[@"relation"])==3);
     return p;
 }
 

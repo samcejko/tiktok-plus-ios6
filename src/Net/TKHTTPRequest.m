@@ -627,7 +627,9 @@ out:
 
     NSString *key = [self poolKey];
     TKConnectionPool *pool = [TKConnectionPool shared];
-    TKTLSSocket *socket = [pool checkoutSocketForKey:key];
+    // Never replay an account write after an ambiguous keep-alive failure.
+    BOOL safeMethod = [self.method isEqualToString:@"GET"] || [self.method isEqualToString:@"HEAD"];
+    TKTLSSocket *socket = safeMethod ? [pool checkoutSocketForKey:key] : nil;
     BOOL reused = (socket != nil);
     NSError *error = nil;
     if (!socket) {

@@ -44,7 +44,7 @@ static const NSInteger TKMaxRedirects = 5;
         NSMutableDictionary *responseHeaders = [request.responseHeaders mutableCopy] ?: [NSMutableDictionary dictionary];
         responseHeaders[@"tk-set-cookie"] = request.setCookieHeaders ?: @[];
         responseHeaders[@"tk-final-url"] = url.absoluteString ?: @"";
-        if (!error && status >= 300 && status < 400 && status != 304 && hops < TKMaxRedirects) {
+        if (([method isEqualToString:@"GET"] || [method isEqualToString:@"HEAD"]) && !error && status >= 300 && status < 400 && status != 304 && hops < TKMaxRedirects) {
             NSString *location = responseHeaders[@"location"];
             NSURL *next = location.length ? [[NSURL URLWithString:location relativeToURL:url] absoluteURL] : nil;
             if (next.host.length && ([next.scheme.lowercaseString isEqualToString:@"https"] || ([url.scheme.lowercaseString isEqualToString:@"http"] && [next.scheme.lowercaseString isEqualToString:@"http"]))) {
@@ -66,7 +66,7 @@ static const NSInteger TKMaxRedirects = 5;
                 return;
             }
         }
-        if (error && retries > 0 && error.code != TKErrorCancelled && error.code != TKErrorCertificate) {
+        if (([method isEqualToString:@"GET"] || [method isEqualToString:@"HEAD"]) && error && retries > 0 && error.code != TKErrorCancelled && error.code != TKErrorCertificate) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.7 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
                 if (task.isCancelled) return;
                 [self run:task method:method url:url headers:headers body:body hops:hops retries:retries - 1 completion:completion];

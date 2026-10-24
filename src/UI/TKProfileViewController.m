@@ -27,6 +27,7 @@ static const CGFloat TKStatsHeight = 52;
 @property (nonatomic, strong) NSArray *dividers;          // etched: a dark and a light line each
 @property (nonatomic, strong) UIButton *liveButton;
 @property (nonatomic, strong) UIButton *favoriteButton;
+@property (nonatomic, strong) UIButton *followButton;
 @property (nonatomic, strong) TKLinkLabel *bioLabel;      // (the web links in the bio open on a tap)
 @property (nonatomic, strong) UIButton *linkButton;
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply;
@@ -99,6 +100,12 @@ static const CGFloat TKStatsHeight = 52;
         _favoriteButton.hidden = YES;
         [self addSubview:_favoriteButton];
 
+        _followButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        _followButton.titleLabel.font=[UIFont boldSystemFontOfSize:15];
+        [_followButton setBackgroundImage:[theme redButtonImageHighlighted:NO] forState:UIControlStateNormal];
+        [_followButton setBackgroundImage:[theme redButtonImageHighlighted:YES] forState:UIControlStateHighlighted];
+        [_followButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        _followButton.hidden=YES; [self addSubview:_followButton];
         _bioLabel = [[TKLinkLabel alloc] initWithFrame:CGRectZero];
         _bioLabel.font = [UIFont systemFontOfSize:14];
         _bioLabel.textColor = [theme embossTextColor];
@@ -134,6 +141,8 @@ static const CGFloat TKStatsHeight = 52;
     for (NSUInteger i = 0; i < 3; i++) [self.valueLabels[i] setText:[TKUtils formatBigCount:[counts[i] longLongValue]]];
     self.liveButton.hidden = !p.liveRoom.length;
     self.favoriteButton.hidden = NO;
+    self.followButton.hidden = !p.userId.length || [p.userId isEqualToString:[TKSession sharedSession].userId];
+    [self.followButton setTitle:p.followStateKnown && p.followed ? L(@"Unfollow on TikTok") : L(@"Follow on TikTok") forState:UIControlStateNormal];
     [self.favoriteButton setTitle:[L(@"Favorite creator") stringByAppendingString:[TKSettings isFavoriteCreator:p.handle] ? @" ✓" : @""] forState:UIControlStateNormal];
     self.bioLabel.text = p.bio.length ? [TKUtils displayText:p.bio] : @"";
     NSString *link = [p.link stringByReplacingOccurrencesOfString:@"https://" withString:@""];
@@ -169,6 +178,11 @@ static const CGFloat TKStatsHeight = 52;
         }
     }
     y += TKStatsHeight + 14;
+    if (!self.followButton.hidden) {
+        CGFloat fw=MIN(w-32,280);
+        if(apply)self.followButton.frame=CGRectMake(floorf((w-fw)/2),y,fw,38);
+        y+=50;
+    }
     BOOL showLive = !self.liveButton.hidden;
     BOOL showFollow = !self.favoriteButton.hidden;
     if (showLive && showFollow) {
@@ -216,6 +230,7 @@ static const CGFloat TKStatsHeight = 52;
 @property (nonatomic, strong) TKProfile *profile;
 @property (nonatomic, strong) TKProfileHeaderView *header;
 @property (nonatomic) long long cursor;
+@property (nonatomic) BOOL followingBusy;
 @end
 
 @implementation TKProfileViewController
@@ -223,10 +238,14 @@ static const CGFloat TKStatsHeight = 52;
 - (instancetype)initWithHandle:(NSString *)handle
 {
     if ((self = [super initWithNibName:nil bundle:nil])) {
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(accountChanged) name:TKSessionDidChangeNotification object:nil];
         _handle = [handle hasPrefix:@"@"] ? [handle substringFromIndex:1] : (handle ?: @"");
     }
     return self;
 }
+
+- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; }
+- (void)accountChanged { self.profile.followStateKnown=NO; self.profile.followed=NO; if(self.isViewLoaded)[self reload]; }
 
 - (void)viewDidLoad
 {
@@ -259,11 +278,27 @@ static const CGFloat TKStatsHeight = 52;
     if (!self.header) {
         self.header = [[TKProfileHeaderView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 300)];
         [self.header.liveButton addTarget:self action:@selector(openLive) forControlEvents:UIControlEventTouchUpInside];
+        [self.header.followButton addTarget:self action:@selector(toggleFollow) forControlEvents:UIControlEventTouchUpInside];
         [self.header.favoriteButton addTarget:self action:@selector(toggleFavorite) forControlEvents:UIControlEventTouchUpInside];
         [self.header.linkButton addTarget:self action:@selector(openBioLink) forControlEvents:UIControlEventTouchUpInside];
         self.header.profile = self.profile;
     }
     return self.header;
+}
+
+- (void)toggleFollow
+{
+    if (self.followingBusy) return;
+    if (![TKSession sharedSession].signedIn) { [TKUtils alertWithTitle:L(@"Sign in") message:L(@"Sign in to use TikTok account actions.")]; return; }
+    TKProfile *profile=self.profile; BOOL on=!(profile.followStateKnown && profile.followed);
+    NSString *token=[TKSession sharedSession].token;
+    self.followingBusy=YES; self.header.followButton.enabled=NO;
+    [TKTikTok followUserId:profile.userId secUid:profile.secUid type:on ? 1 : 0 completion:^(BOOL ok,NSError *error){
+        self.followingBusy=NO; self.header.followButton.enabled=YES;
+        if (![token isEqualToString:[TKSession sharedSession].token] || self.profile!=profile) return;
+        if(ok) { profile.followStateKnown=YES; profile.followed=on; self.header.profile=profile; [self headerChanged]; }
+        else [TKUtils alertWithTitle:L(@"Action not confirmed") message:error.localizedDescription];
+    }];
 }
 
 - (void)toggleFavorite

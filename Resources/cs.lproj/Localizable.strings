@@ -396,3 +396,26 @@
 "No favorites yet." = "Zatím žádné oblíbené položky.";
 "Hold to rename or delete." = "Podržením přejmenuješ nebo smažeš.";
 "No videos match your feed filters." = "Filtrům feedu neodpovídá žádné video.";
+
+/* Direct TikTok account actions */
+"Action not confirmed" = "Akce nebyla potvrzena";
+"Delete comment" = "Smazat komentář";
+"Delete your comment permanently?" = "Trvale smazat vlastní komentář?";
+"Follow on TikTok" = "Sledovat na TikToku";
+"Invalid account action or comment. Comments can contain up to 2200 characters." = "Neplatná akce nebo komentář. Komentáře mohou mít nejvýše 2200 znaků.";
+"Like comment" = "Lajknout komentář";
+"Like removed on TikTok" = "Like na TikToku odebrán";
+"Likes, follows and comments are sent directly under your TikTok account. Local saved posts and favorite creators stay on this device. TikTok may refuse account actions." = "Lajky, sledování a komentáře se odesílají přímo pod tvým účtem TikTok. Místně uložená videa a oblíbení autoři zůstávají v tomto zařízení. TikTok může akce odmítnout.";
+"Local" = "Místně";
+"Only your own comments can be deleted." = "Smazat můžeš jen vlastní komentáře.";
+"Reply" = "Odpovědět";
+"Save locally" = "Uložit do zařízení";
+"Sign in to use TikTok account actions." = "Pro lajkování, sledování a komentování se přihlas k TikToku.";
+"This action is already being sent." = "Tato akce se už odesílá.";
+"TikTok did not confirm this action. Refresh before trying again; it may already have been received." = "TikTok tuto akci nepotvrdil. Před dalším pokusem obnov obsah; akce už mohla být přijata.";
+"TikTok did not provide the account action token. Open TikTok in your browser and refresh the session." = "TikTok neposkytl přístup pro akce účtu. Otevři TikTok v prohlížeči a obnov přihlášení.";
+"Unfollow on TikTok" = "Přestat sledovat na TikToku";
+"Unlike comment" = "Odebrat like komentáře";
+"Unlike on TikTok" = "Odebrat like na TikToku";
+"You cannot follow your own account." = "Vlastní účet nemůžeš sledovat.";
+"Your draft is kept. Refresh comments before sending it again." = "Koncept zůstává zachovaný. Před dalším odesláním obnov komentáře.";

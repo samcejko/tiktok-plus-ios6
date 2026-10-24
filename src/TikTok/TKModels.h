@@ -12,6 +12,8 @@
 @property (nonatomic, copy) NSString *music;
 @property (nonatomic) NSInteger likes;
 @property (nonatomic) NSInteger commentCount;
+@property (nonatomic) BOOL liked;
+@property (nonatomic) BOOL likeStateKnown; // absent is unknown, never inferred from local saves
 @property (nonatomic) NSInteger plays;
 @property (nonatomic) NSInteger durationSeconds;
 @property (nonatomic) NSInteger width;
@@ -58,6 +60,9 @@
 @property (nonatomic) NSInteger replyCount;
 @property (nonatomic) BOOL pinned;
 @property (nonatomic) BOOL isReply;
+@property (nonatomic, copy) NSString *userId;
+@property (nonatomic) BOOL liked;
+@property (nonatomic) BOOL likeStateKnown;
 + (instancetype)commentFromJSON:(NSDictionary *)json;
 @end
 
@@ -81,6 +86,8 @@
 @property (nonatomic) long long postsCursor;          // where the next page of posts starts (0 = none)
 @property (nonatomic) BOOL postsUnavailable;
 @property (nonatomic) BOOL hasMorePosts;
+@property (nonatomic) BOOL followed;
+@property (nonatomic) BOOL followStateKnown;
 + (instancetype)profileFromJSON:(NSDictionary *)json;
 + (instancetype)profileFromUserJSON:(NSDictionary *)user;   // just who they are (a search result)
 @end

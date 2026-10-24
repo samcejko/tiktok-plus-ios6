@@ -20,3 +20,7 @@ the user's call. No login, no posting, no access to private content.
 - **Python** - PSF License.
 
 The license texts of the shipped libraries are included in the app bundle (Settings).
+
+## Protocol references
+
+The independently implemented TikTok web account-action paths and parameter names were cross-checked against caixax/opentok's MIT-licensed endpoints.ts and signedFetch.ts (2026-10-24): https://github.com/caixax/opentok/tree/main/src/main/tiktok . Its Electron/browser signer is not bundled or used. The on-device signature implementation has different capabilities; live acceptance of writes must be validated separately.

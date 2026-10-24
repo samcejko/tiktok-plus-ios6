@@ -7,6 +7,7 @@
 #import "TKTaste.h"
 #import "TKLinkRouter.h"
 #import "TKTikTok.h"
+#import "TKDirectClient.h"
 #import "TKModels.h"
 #import "TKMediaProxy.h"
 #import "TKTLSSocket.h"
@@ -150,6 +151,10 @@ static BOOL TKPressView(UIView *v, NSString *text)
         else if([table.delegate respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) [table.delegate tableView:table didSelectRowAtIndexPath:ip];
         return YES;
     }
+    if ([target isEqualToString:@"actioncheck"]) {
+        [TKDirectClient checkActionReadiness:^(NSDictionary *flags){ [[TKUtils JSONDataFromObject:flags] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tiktak-actioncheck.json"] atomically:YES]; }];
+        return YES;
+    }
     if ([target isEqualToString:@"accountcheck"]) {
         NSString *expectedId = [TKSession sharedSession].userId;
         NSString *expectedHandle = [TKSession sharedSession].handle;
@@ -188,6 +193,7 @@ static BOOL TKPressView(UIView *v, NSString *text)
     if ([target isEqualToString:@"feedback"]) {
         NSMutableDictionary *state=[NSMutableDictionary dictionary];
         state[@"controller"]=NSStringFromClass([top class]);
+        state[@"accountAction"]=[TKDirectClient actionDiagnostics];
         state[@"signedIn"]=@([TKSession sharedSession].signedIn);
         state[@"version"]=[TKUtils appVersion];
         state[@"historyCount"]=@([TKSettings watchHistory].count);
