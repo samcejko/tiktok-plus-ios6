@@ -130,13 +130,19 @@ static BOOL TKPressView(UIView *v, NSString *text)
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[TKUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
     UIViewController *top = [self topController];
+    if ([target isEqualToString:@"selftest"]) {
+        extern int TKRunDirectParserTests(void);
+        int failures=TKRunDirectParserTests();
+        NSDictionary *result=@{@"passed":@(failures==0),@"failures":@(failures),@"version":[TKUtils appVersion]};
+        [[TKUtils JSONDataFromObject:result] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tiktak-selftest.json"] atomically:YES];
+        return YES;
+    }
     if ([target isEqualToString:@"feedback"]) {
         NSMutableDictionary *state=[NSMutableDictionary dictionary];
         state[@"controller"]=NSStringFromClass([top class]);
         state[@"signedIn"]=@([TKSession sharedSession].signedIn);
         state[@"version"]=[TKUtils appVersion];
         if ([top isKindOfClass:[TKFeedViewController class]]) [state addEntriesFromDictionary:[(TKFeedViewController *)top diagnosticState]];
-        [TKUtils JSONDataFromObject:state];
         [[TKUtils JSONDataFromObject:state] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tiktak-check.json"] atomically:YES];
         return YES;
     }

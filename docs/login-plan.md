@@ -1,3 +1,5 @@
+> Historical proposal from 2026-10-16. Superseded by the direct-device implementation on 2026-10-24; see `direct-client.md`.
+
 # TikTak — Sign-in & logged-in features: implementation plan
 
 Status: proposal / not started · Written 2026-10-16

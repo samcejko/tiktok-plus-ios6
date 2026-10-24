@@ -34,7 +34,7 @@ NSArray *TKArr(id value)
 
 NSInteger TKInt(id value)
 {
-    if ([value isKindOfClass:[NSNumber class]] || [value isKindOfClass:[NSString class]]) return [value integerValue];
+    if ([value isKindOfClass:[NSNumber class]] || [value isKindOfClass:[NSString class]]) { long long n=[value longLongValue]; return (NSInteger)MIN((long long)NSIntegerMax,MAX((long long)NSIntegerMin,n)); }
     return 0;
 }
 

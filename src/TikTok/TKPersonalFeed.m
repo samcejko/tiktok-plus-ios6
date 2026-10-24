@@ -2,11 +2,14 @@
 #import "TKTikTok.h"
 #import "TKFeed.h"
 #import "TKCommon.h"
+#import "TKHTTP.h"
 
 @interface TKPersonalFeed ()
 @property (nonatomic, strong) NSMutableArray *mutableVideos;
 @property (nonatomic, assign, readwrite) BOOL loading;
-@property (nonatomic, strong) TKFeed *fallbackFeed;
+@property (nonatomic, strong) TKFeed *learningFeed;
+@property (nonatomic, strong) TKHTTPTask *task;
+@property (nonatomic) NSUInteger generation;
 @end
 
 @implementation TKPersonalFeed
@@ -22,10 +25,12 @@
     if (self) {
         _isFollowingMode = followingMode;
         _mutableVideos = [NSMutableArray array];
-        _fallbackFeed = [[TKFeed alloc] init];
+        _learningFeed = [[TKFeed alloc] init];
     }
     return self;
 }
+
+- (void)dealloc { [_task cancel]; }
 
 - (NSArray *)videos
 {
@@ -34,8 +39,12 @@
 
 - (void)reloadWithCompletion:(void (^)(NSError *error))completion
 {
+    [self.task cancel];
+    NSUInteger generation=++self.generation;
     self.loading = YES;
     void (^handleVideos)(NSArray *, NSError *) = ^(NSArray *videos, NSError *error) {
+        if (generation != self.generation) return;
+        self.task=nil;
         self.loading = NO;
         if (videos.count > 0) {
             [self.mutableVideos removeAllObjects];
@@ -48,9 +57,9 @@
     };
 
     if (self.isFollowingMode) {
-        [TKTikTok followingFeedWithCount:20 completion:handleVideos];
+        self.task=[TKTikTok followingFeedWithCount:20 completion:handleVideos];
     } else {
-        [TKTikTok personalFeedWithCount:20 completion:handleVideos];
+        self.task=[TKTikTok personalFeedWithCount:20 completion:handleVideos];
     }
 }
 
@@ -61,8 +70,11 @@
         return;
     }
 
+    NSUInteger generation=self.generation;
     self.loading = YES;
     void (^handleMore)(NSArray *, NSError *) = ^(NSArray *videos, NSError *error) {
+        if (generation != self.generation) return;
+        self.task=nil;
         self.loading = NO;
         if (videos.count > 0) {
             NSMutableSet *existingIds = [NSMutableSet set];
@@ -84,30 +96,30 @@
     };
 
     if (self.isFollowingMode) {
-        [TKTikTok followingFeedWithCount:20 completion:handleMore];
+        self.task=[TKTikTok followingFeedWithCount:20 completion:handleMore];
     } else {
-        [TKTikTok personalFeedWithCount:20 completion:handleMore];
+        self.task=[TKTikTok personalFeedWithCount:20 completion:handleMore];
     }
 }
 
 - (void)noteWatched:(TKVideo *)video seconds:(NSTimeInterval)watched duration:(NSTimeInterval)duration passive:(BOOL)passive
 {
-    [self.fallbackFeed noteWatched:video seconds:watched duration:duration passive:passive];
+    [self.learningFeed noteWatched:video seconds:watched duration:duration passive:passive];
 }
 
 - (void)noteSaved:(TKVideo *)video
 {
-    [self.fallbackFeed noteSaved:video];
+    [self.learningFeed noteSaved:video];
 }
 
 - (void)noteNotInterested:(TKVideo *)video
 {
-    [self.fallbackFeed noteNotInterested:video];
+    [self.learningFeed noteNotInterested:video];
 }
 
 - (void)noteEngaged:(TKVideo *)video weight:(double)weight
 {
-    [self.fallbackFeed noteEngaged:video weight:weight];
+    [self.learningFeed noteEngaged:video weight:weight];
 }
 
 @end

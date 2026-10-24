@@ -207,10 +207,14 @@ jobs:
             TARGET=armv7-apple-ios6.0; SDK="$THEOS/sdks/iPhoneOS9.3.sdk"
           fi
           mkdir -p packages
-          clang -target "$TARGET" -isysroot "$SDK" -fobjc-arc -fno-objc-link-runtime -fblocks -Os -lobjc \
-            -Isrc -Isrc/TikTok -framework Foundation -framework UIKit \
-            tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKWebSignature.m src/TKCommon.m \
-            -o "packages/direct-parser-tests${{ matrix.suffix }}"
+          mkdir -p /tmp/tiktak-parser-objects
+          for source in tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKWebSignature.m src/TKCommon.m; do
+            clang -target "$TARGET" -isysroot "$SDK" -fobjc-arc -fblocks -Os \
+              -Isrc -Isrc/TikTok -c "$source" -o "/tmp/tiktak-parser-objects/$(basename "$source").o"
+          done
+          # Link compiled objects without the ARC driver flag: iOS 6 supplies its ARC runtime itself.
+          clang -target "$TARGET" -isysroot "$SDK" -lobjc -framework Foundation -framework UIKit \
+            /tmp/tiktak-parser-objects/*.o -o "packages/direct-parser-tests${{ matrix.suffix }}"
           install_name_tool -change /System/Library/Frameworks/CFNetwork.framework/CFNetwork /System/Library/Frameworks/Foundation.framework/Foundation "packages/direct-parser-tests${{ matrix.suffix }}" || true
           ldid -S "packages/direct-parser-tests${{ matrix.suffix }}"
 

@@ -7,8 +7,9 @@
 static unsigned checks, failures;
 static void check(BOOL ok, const char *label) { checks++; if(!ok){failures++;fprintf(stderr,"FAIL: %s\n",label);} }
 static NSDictionary *format(NSString *codec,NSInteger w,NSInteger h,NSString *url) { return @{@"CodecType":codec,@"PlayAddr":@{@"Width":@(w),@"Height":@(h),@"UrlList":@[url]}}; }
-int main(int argc,char **argv)
+int TKRunDirectParserTests(void)
 {
+    checks=failures=0;
     @autoreleasepool {
         check(![TKDirectParser successfulResponse:nil],"empty is not success");
         check(![TKDirectParser successfulResponse:@{}],"empty dictionary is not success");
@@ -71,3 +72,7 @@ int main(int argc,char **argv)
     }
     return failures ? 1 : 0;
 }
+
+#ifndef TK_TESTS_EMBEDDED
+int main(int argc,char **argv) { return TKRunDirectParserTests(); }
+#endif
