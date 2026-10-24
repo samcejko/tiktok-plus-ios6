@@ -67,6 +67,8 @@ static FourCharCode TKFourCC(const char *s)
 @property (nonatomic, strong) UIPanGestureRecognizer *scrubPan;
 @property (nonatomic) BOOL scrubbing;
 @property (nonatomic) BOOL resumeAfterScrub;
+@property (nonatomic) NSUInteger seekGeneration;
+@property (nonatomic) BOOL seekPending;
 @property (nonatomic) float playbackRate;
 @property (nonatomic) BOOL active;
 @property (nonatomic) BOOL wantMuted;
@@ -684,13 +686,28 @@ static FourCharCode TKFourCC(const char *s)
     }
 }
 
+- (void)seekPlayerTo:(CMTime)time tolerance:(CMTime)tolerance
+{
+    AVPlayer *player=self.player;TKVideo *video=self.video;if(!player)return;
+    NSUInteger generation=++self.seekGeneration;self.seekPending=YES;
+    __weak TKVideoCell *weakSelf=self;
+    [player seekToTime:time toleranceBefore:tolerance toleranceAfter:tolerance completionHandler:^(BOOL finished){
+        TKMain(^{
+            TKVideoCell *me=weakSelf;
+            if (!me || me.player!=player || me.video!=video || me.seekGeneration!=generation) return;
+            me.seekPending=NO;
+            if (finished && me.active && me.playing && !me.scrubbing) [me resume];
+        });
+    }];
+}
+
 - (void)itemDidReachEnd:(NSNotification *)note
 {
-    if (note.object != self.item) return;
-    [self.delegate videoCellDidReachEnd:self];
-    [self.item seekToTime:kCMTimeZero];
+    if (note.object != self.item || self.scrubbing) return;
+    // Photo duration is controlled by the slideshow, not the end of its shorter audio track.
+    if (![self isPhotoPost]) [self.delegate videoCellDidReachEnd:self];
     self.lastTickTime = -1;
-    if (self.active) [self resume];
+    [self seekPlayerTo:kCMTimeZero tolerance:kCMTimeZero];
 }
 
 - (void)setActive:(BOOL)active { [self setActive:active rewind:YES]; }
@@ -706,7 +723,7 @@ static FourCharCode TKFourCC(const char *s)
         [self stopPhotoTimer];
         [self stopStallWatch];
         [self spinDisc:NO];
-        if (self.item && rewind) [self.item seekToTime:kCMTimeZero];
+        if (self.item && rewind) [self seekPlayerTo:kCMTimeZero tolerance:kCMTimeZero];
         self.lastTickTime = -1;
     }
 }
@@ -907,7 +924,7 @@ static FourCharCode TKFourCC(const char *s)
     self.progressBar.frame = CGRectMake(0, [self progressBottom] - 5, b.size.width * fraction, 5);
     self.scrubLabel.text = [NSString stringWithFormat:@"%@ / %@", [TKUtils formatDuration:t], [TKUtils formatDuration:dur]];
     CMTime tolerance = exact ? kCMTimeZero : CMTimeMakeWithSeconds(0.4, 600);
-    [self.player seekToTime:CMTimeMakeWithSeconds(t, 600) toleranceBefore:tolerance toleranceAfter:tolerance];
+    [self seekPlayerTo:CMTimeMakeWithSeconds(t,600) tolerance:tolerance];
 }
 
 - (void)endScrub
@@ -915,7 +932,7 @@ static FourCharCode TKFourCC(const char *s)
     self.scrubbing = NO;
     self.scrubLabel.hidden = YES;
     self.lastTickTime = -1;
-    if (self.resumeAfterScrub && self.active) [self resume];
+    if (self.resumeAfterScrub && self.active && !self.seekPending) [self resume];
 }
 
 - (void)simulateDoubleTap
@@ -1126,6 +1143,7 @@ static FourCharCode TKFourCC(const char *s)
 
 - (void)teardownPlayer
 {
+    ++self.seekGeneration;self.seekPending=NO;
     [self releasePlayer];
     [self stopPhotoTimer];
     [self stopStallWatch];
