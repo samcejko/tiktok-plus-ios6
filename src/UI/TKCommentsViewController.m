@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKCommentsViewController.h"
 #import "TKLinkRouter.h"
 #import "TKLinkLabel.h"
@@ -363,7 +364,7 @@ static UILabel *TKCommentSizingLabel(void)
         [TKUtils alertWithTitle:L(@"Actions disabled") message:L(@"Enable 'Allow actions on account' in Settings to post comments.")];
         return;
     }
-    UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Add comment")
+    UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Add comment")
                                                 message:[NSString stringWithFormat:L(@"Posting as @%@"), [TKSession sharedSession].handle ?: @""]
                                                delegate:self
                                       cancelButtonTitle:L(@"Cancel")

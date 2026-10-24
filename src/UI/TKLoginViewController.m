@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKLoginViewController.h"
 #import "TKSession.h"
 #import "TKTheme.h"
@@ -250,7 +251,7 @@
         if (success) {
             NSString *handle = [TKSession sharedSession].handle;
             NSString *msg = [NSString stringWithFormat:L(@"Signed in as @%@"), handle ?: @""];
-            UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Sign-in successful")
+            UIAlertView *alert = [[TKAlertView alloc] initWithTitle:L(@"Sign-in successful")
                                                            message:msg
                                                           delegate:self
                                                  cancelButtonTitle:L(@"OK")
@@ -258,7 +259,7 @@
             alert.tag = 100;
             [alert show];
         } else {
-            UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Sign-in failed")
+            UIAlertView *alert = [[TKAlertView alloc] initWithTitle:L(@"Sign-in failed")
                                                            message:errorMessage ?: L(@"Could not import session.")
                                                           delegate:nil
                                                  cancelButtonTitle:L(@"OK")
@@ -271,7 +272,7 @@
 
 - (void)pasteTapped
 {
-    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Paste Session")
+    UIAlertView *alert = [[TKAlertView alloc] initWithTitle:L(@"Paste Session")
                                                    message:L(@"Paste your cookie JSON or session string:")
                                                   delegate:self
                                          cancelButtonTitle:L(@"Cancel")
@@ -305,7 +306,7 @@
             if (success) {
                 NSString *handle = [TKSession sharedSession].handle;
                 NSString *msg = [NSString stringWithFormat:L(@"Signed in as @%@"), handle ?: @""];
-                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Sign-in successful")
+                UIAlertView *alert = [[TKAlertView alloc] initWithTitle:L(@"Sign-in successful")
                                                                message:msg
                                                               delegate:self
                                                      cancelButtonTitle:L(@"OK")
@@ -313,7 +314,7 @@
                 alert.tag = 100;
                 [alert show];
             } else {
-                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Sign-in failed")
+                UIAlertView *alert = [[TKAlertView alloc] initWithTitle:L(@"Sign-in failed")
                                                                message:errorMessage ?: L(@"Could not import session.")
                                                               delegate:nil
                                                      cancelButtonTitle:L(@"OK")

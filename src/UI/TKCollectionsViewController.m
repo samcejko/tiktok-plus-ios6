@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKCollectionsViewController.h"
 #import "TKSavedViewController.h"
 #import "TKSettings.h"
@@ -20,7 +21,7 @@
     [TKActionSheet options:titles title:L(@"Add to collection") inView:view selection:^(NSInteger i){
         if(i<(NSInteger)collections.count) { [TKSettings addVideo:video toCollection:collections[(NSUInteger)i][@"id"]]; if(completion)completion(YES); }
         else {
-            UIAlertView *a=[[UIAlertView alloc] initWithTitle:L(@"New collection") message:L(@"Choose a unique name (up to 60 characters).") delegate:picker cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Save"),nil];
+            UIAlertView *a=[[TKAlertView alloc] initWithTitle:L(@"New collection") message:L(@"Choose a unique name (up to 60 characters).") delegate:picker cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Save"),nil];
             a.alertViewStyle=UIAlertViewStylePlainTextInput;
             objc_setAssociatedObject(a,@selector(addVideo:inView:completion:),picker,OBJC_ASSOCIATION_RETAIN_NONATOMIC); [a show];
         }
@@ -55,7 +56,7 @@
 - (void)add { self.editingId=nil; [self prompt:nil]; }
 - (void)prompt:(NSString *)name
 {
-    UIAlertView *a=[[UIAlertView alloc] initWithTitle:self.editingId ? L(@"Rename collection") : L(@"New collection") message:L(@"Choose a unique name (up to 60 characters).") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Save"),nil];
+    UIAlertView *a=[[TKAlertView alloc] initWithTitle:self.editingId ? L(@"Rename collection") : L(@"New collection") message:L(@"Choose a unique name (up to 60 characters).") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Save"),nil];
     a.alertViewStyle=UIAlertViewStylePlainTextInput; [a textFieldAtIndex:0].text=name ?: @""; [a show];
 }
 - (void)alertView:(UIAlertView *)a clickedButtonAtIndex:(NSInteger)i
@@ -78,7 +79,7 @@
     [TKActionSheet options:@[L(@"Rename"),L(@"Delete collection")] title:c[@"name"] inView:self.view selection:^(NSInteger i){
         self.editingId=c[@"id"];
         if(i==0)[self prompt:c[@"name"]];
-        else { UIAlertView *a=[[UIAlertView alloc] initWithTitle:L(@"Delete collection") message:L(@"The saved videos will be kept.") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Delete"),nil]; a.tag=2; [a show]; }
+        else { UIAlertView *a=[[TKAlertView alloc] initWithTitle:L(@"Delete collection") message:L(@"The saved videos will be kept.") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Delete"),nil]; a.tag=2; [a show]; }
     }];
 }
 - (NSInteger)tableView:(UITableView *)t numberOfRowsInSection:(NSInteger)s { return self.items.count; }

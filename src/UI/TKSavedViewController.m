@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKSavedViewController.h"
 #import "TKFeedViewController.h"
 #import "TKModels.h"
@@ -75,7 +76,7 @@
 - (void)askToClear
 {
     [self.searchBar resignFirstResponder];
-    [[[UIAlertView alloc] initWithTitle:L(@"Clear watch history") message:L(@"Remove local viewing history? Saved videos and your TikTok account stay unchanged.") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Clear"), nil] show];
+    [[[TKAlertView alloc] initWithTitle:L(@"Clear watch history") message:L(@"Remove local viewing history? Saved videos and your TikTok account stay unchanged.") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Clear"), nil] show];
 }
 - (void)alertView:(UIAlertView *)alert clickedButtonAtIndex:(NSInteger)index { if (index != alert.cancelButtonIndex) [TKSettings clearWatchHistory]; }
 

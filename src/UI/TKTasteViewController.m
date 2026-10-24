@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKTasteViewController.h"
 #import "TKLanguagesViewController.h"
 #import "TKTaste.h"
@@ -172,7 +173,7 @@ enum { SecTopics, SecLikes, SecDislikes, SecActions, SecCount };
     if (ip.row == 0) {
         [self.navigationController pushViewController:[[TKLanguagesViewController alloc] init] animated:YES];
     } else {
-        UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Start over") message:L(@"Forget everything it learned about you?")
+        UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Start over") message:L(@"Forget everything it learned about you?")
                                                    delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Forget everything"), nil];
         [a show];
     }

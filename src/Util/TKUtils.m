@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKUtils.h"
 #import "TKCommon.h"
 #include <CommonCrypto/CommonDigest.h>
@@ -421,7 +422,7 @@ static unichar TKPlainLetter(UTF32Char c)
 + (void)alertWithTitle:(NSString *)title message:(NSString *)message
 {
     TKMain(^{
-        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:title message:message delegate:nil cancelButtonTitle:L(@"OK") otherButtonTitles:nil];
+        UIAlertView *alert = [[TKAlertView alloc] initWithTitle:title message:message delegate:nil cancelButtonTitle:L(@"OK") otherButtonTitles:nil];
         [alert show];
     });
 }

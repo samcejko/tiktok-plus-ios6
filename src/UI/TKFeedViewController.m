@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKFeedViewController.h"
 #import "TKVideoCell.h"
 #import "TKFeed.h"
@@ -1014,7 +1015,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 
 - (void)askForLink
 {
-    UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Open a link") message:L(@"Paste a TikTok link: a video, a profile or a live stream.")
+    UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Open a link") message:L(@"Paste a TikTok link: a video, a profile or a live stream.")
                                                delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Open"), nil];
     a.alertViewStyle = UIAlertViewStylePlainTextInput;
     [a textFieldAtIndex:0].text = [UIPasteboard generalPasteboard].string ?: @"";

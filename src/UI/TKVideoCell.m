@@ -73,6 +73,7 @@ static FourCharCode TKFourCC(const char *s)
 @property (nonatomic) float playbackRate;
 @property (nonatomic) NSTimeInterval historySeconds;
 @property (nonatomic) BOOL historyRecorded;
+@property (nonatomic) BOOL playbackStarted;
 @property (nonatomic) BOOL active;
 @property (nonatomic) BOOL wantMuted;
 @property (nonatomic) BOOL usingServerProxy;
@@ -360,6 +361,7 @@ static FourCharCode TKFourCC(const char *s)
     self.playbackRate = video.isPhoto ? 1.0f : [TKSettings defaultPlaybackSpeed];
     self.historySeconds = 0;
     self.historyRecorded = NO;
+    self.playbackStarted = NO;
     self.usingServerProxy = [TKSettings streamThroughServer];
     self.errorLabel.hidden = YES;
     self.authorLabel.text = video.author.length ? [@"@" stringByAppendingString:video.author] : (video.authorName ?: @"");
@@ -497,6 +499,11 @@ static FourCharCode TKFourCC(const char *s)
 - (void)resume
 {
     if ([TKPlaybackClock shared].expired) return;
+    if(!self.playbackStarted && ![self isPhotoPost]) {
+        self.playbackRate=[TKSettings defaultPlaybackSpeed];
+        if(self.item.status==AVPlayerItemStatusReadyToPlay && ![self setPlaybackSpeed:self.playbackRate])self.playbackRate=1;
+    }
+    self.playbackStarted=YES;
     if (self.player) self.player.rate = self.playbackRate;    // (-play would reset a 2x speed)
     if (self.player || [self isPhotoPost]) self.playing = YES;
     if ([self isPhotoPost]) [self startPhotoTimer];

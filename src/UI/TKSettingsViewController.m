@@ -1,3 +1,4 @@
+#import "TKAlertView.h"
 #import "TKSettingsViewController.h"
 #import "TKLanguagesViewController.h"
 #import "TKTasteViewController.h"
@@ -175,7 +176,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         case 40: [TKSettings setVerifyTLS:sw.on]; [TKSettings save]; break;
         case 50: {
             if (sw.on) {
-                UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Enable account actions?")
+                UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Enable account actions?")
                                                             message:L(@"Liking, following and commenting run directly under your account on TikTok's servers. Aggressive use may trigger rate limits or account flags. We recommend using a throwaway account.")
                                                            delegate:self
                                                   cancelButtonTitle:L(@"Cancel")
@@ -205,7 +206,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
             } else if (r == 1) {
                 [self.navigationController pushViewController:[[TKLikedViewController alloc] init] animated:YES];
             } else if (r == 2) {
-                UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Sign out") message:L(@"Are you sure you want to sign out?") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Sign out"), nil];
+                UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Sign out") message:L(@"Are you sure you want to sign out?") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Sign out"), nil];
                 a.tag = 51;
                 [a show];
             }
@@ -222,7 +223,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         [[TKImageLoader shared] clearMemory];
         [[TKImageLoader shared] clearDiskWithCompletion:^{ [TKUtils alertWithTitle:nil message:L(@"Image cache cleared.")]; }];
     } else if (s == SecData && r == 1) {
-        UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Clear saved videos") message:L(@"Remove every saved video?") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Clear"), nil];
+        UIAlertView *a = [[TKAlertView alloc] initWithTitle:L(@"Clear saved videos") message:L(@"Remove every saved video?") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Clear"), nil];
         a.tag = 3;
         [a show];
     } else if (s == SecAbout && r == 1) {
