@@ -334,8 +334,8 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
         part=[self requestURL:[@"https://www.tiktok.com/@" stringByAppendingString:[TKUtils urlEncode:TKStr(user[@"handle"])]] jar:jar completion:^(id scope,NSDictionary *h,NSError *error){
             if(outer.isCancelled)return;outer.cancelBlock=nil;
             NSDictionary *profile=[TKDirectParser profile:TKDict(TKDict(TKDict(scope)[@"webapp.user-detail"])[@"userInfo"])];
-            if(error || ![TKStr(profile[@"id"]) isEqualToString:TKStr(user[@"userId"])]) {completion(NO,nil,nil,error ?: TKMakeError(TKErrorAuth,L(@"The verified account and profile do not match. Export fresh TikTok cookies.")));return;}
-            NSMutableDictionary *verified=[user mutableCopy];verified[@"handle"]=profile[@"handle"];verified[@"name"]=profile[@"name"];verified[@"avatar"]=profile[@"avatar"];verified[@"secUid"]=profile[@"secUid"];
+            NSDictionary *verified=[TKDirectParser account:user matchingProfile:profile];
+            if(error || !verified) {completion(NO,nil,nil,error ?: TKMakeError(TKErrorAuth,L(@"The verified account and profile do not match. Export fresh TikTok cookies.")));return;}
             NSString *token=[[NSProcessInfo processInfo] globallyUniqueString];
             [self shared].pending[token]=@{@"token":token,@"user":verified,@"cookies":[self serializeCookies:jar]};
             completion(YES,token,verified,nil);

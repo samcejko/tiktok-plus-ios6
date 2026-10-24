@@ -168,8 +168,16 @@ invalid:
     if (![TKStr(r[@"message"]) isEqualToString:@"success"] || TKInt(d[@"error_code"]) != 0) return nil;
     NSString *uid = TKStr(d[@"user_id_str"]) ?: TKStr(d[@"user_id"]), *handle = TKStr(d[@"username"]);
     if (!uid.length || !handle.length) return nil;
-    for (NSHTTPCookie *c in cookies) if (([c.name isEqualToString:@"uid_tt"] || [c.name isEqualToString:@"uid_tt_ss"]) && ![c.value isEqualToString:uid]) return nil;
+    // Tracking-cookie values are opaque. Only the authenticated server response establishes the ID.
     return @{@"userId":uid, @"handle":handle, @"name":TKStr(d[@"screen_name"]) ?: handle,
         @"avatar":[self URLString:d[@"avatar_url"]], @"secUid":TKStr(d[@"sec_user_id"]) ?: @""};
+}
++ (NSDictionary *)account:(NSDictionary *)account matchingProfile:(NSDictionary *)profile
+{
+    NSString *uid=TKStr(TKDict(account)[@"userId"]);
+    if (!uid.length || !TKStr(TKDict(account)[@"handle"]).length || ![uid isEqualToString:TKStr(TKDict(profile)[@"id"])] || !TKStr(profile[@"handle"]).length) return nil;
+    NSMutableDictionary *verified=[account mutableCopy];
+    for (NSString *key in @[@"handle",@"name",@"avatar",@"secUid"]) verified[key]=TKStr(profile[key]) ?: @"";
+    return verified;
 }
 @end

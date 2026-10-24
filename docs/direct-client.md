@@ -15,7 +15,7 @@ This supersedes the old helper-only proposal. The default app connects to TikTok
 ## Account identity and secrets
 
 - Imports accept Cookie-Editor arrays/wrappers, JSON cookie maps, Netscape exports and Cookie headers. Non-TikTok domains, expired session cookies, header injection and ambiguous duplicates are rejected.
-- Cookie presence is not proof of login. Only a successful authenticated passport account-info response containing both a user ID and handle can establish identity. Exported `uid_tt` values must agree when present. Public profile hydration is never used as authentication evidence.
+- Cookie presence is not proof of login. Only a successful authenticated passport account-info response containing both a user ID and handle can establish identity. Tracking cookies are treated as opaque values. A public profile can enrich the account only when its ID exactly matches the authenticated ID; public hydration alone never establishes identity.
 - A successful import is staged until `TKSession` confirms it is still the latest request. Sign-out or a newer import invalidates late callbacks.
 - The session is committed atomically to Keychain with `AfterFirstUnlockThisDeviceOnly`. Account cookies have no plaintext preferences fallback. The imported file is removed only after secure persistence succeeds.
 - Legacy helper tokens are not accepted as proof of a local TikTok session. Existing helper session files/services are not remotely modified by the app.

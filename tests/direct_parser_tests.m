@@ -32,7 +32,11 @@ int TKRunDirectParserTests(void)
         check(![TKDirectParser verifiedAccount:@{@"userInfo":@{@"user":@{@"uniqueId":@"someone_else"}}} cookies:cookies],"public profile never authenticates");
         check(![TKDirectParser verifiedAccount:@{@"message":@"error",@"data":@{@"user_id":@"123",@"username":@"fixture"}} cookies:cookies],"unsuccessful passport with fields rejected");
         NSArray *other=[TKDirectParser cookiesFromString:@"sessionid=fixture-session; uid_tt=456" error:nil];
-        check(![TKDirectParser verifiedAccount:account cookies:other],"cookie identity mismatch rejected");
+        check([TKDirectParser verifiedAccount:account cookies:other]!=nil,"opaque tracking cookies cannot override authenticated identity");
+        NSDictionary *auth=[TKDirectParser verifiedAccount:account cookies:cookies];
+        check(![TKDirectParser account:auth matchingProfile:@{@"id":@"456",@"handle":@"someone_else"}],"different public profile cannot be committed");
+        check(![TKDirectParser account:nil matchingProfile:@{@"id":@"123",@"handle":@"fixture"}],"profile without authenticated account rejected");
+        check([TKDirectParser account:auth matchingProfile:@{@"id":@"123",@"handle":@"fixture",@"secUid":@"fixture-sec"}]!=nil,"matching authenticated ID can enrich profile");
         check(![TKDirectParser verifiedAccount:@{@"message":@"success",@"data":@{@"user_id":@123}} cookies:cookies],"incomplete identity rejected");
         check([TKDirectParser cookiesFromString:@"{\"cookies\":[{\"name\":\"sessionid\",\"value\":\"fixture-session\",\"domain\":\".tiktok.com\"}]}" error:nil].count==1,"Cookie-Editor wrapper");
         check([TKDirectParser cookiesFromString:@"# Netscape HTTP Cookie File\n#HttpOnly_.tiktok.com\tTRUE\t/\tTRUE\t0\tsessionid\tfixture-session" error:nil].count==1,"Netscape HTTP-only cookie");

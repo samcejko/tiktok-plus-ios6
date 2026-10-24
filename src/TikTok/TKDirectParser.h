@@ -8,6 +8,7 @@
 + (NSDictionary *)comment:(NSDictionary *)item;
 + (NSArray *)cookiesFromString:(NSString *)input error:(NSError **)error;
 + (NSDictionary *)verifiedAccount:(NSDictionary *)response cookies:(NSArray *)cookies;
++ (NSDictionary *)account:(NSDictionary *)account matchingProfile:(NSDictionary *)profile;
 + (BOOL)successfulResponse:(NSDictionary *)response;
 + (NSString *)URLString:(id)value;
 @end
