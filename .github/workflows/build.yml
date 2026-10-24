@@ -259,6 +259,7 @@ jobs:
             packages/*.ipa
             packages/*.deb
             packages/direct-parser-tests*
+            packages/tiktak-session-transfer
           if-no-files-found: error
 
       - name: Upload build log
