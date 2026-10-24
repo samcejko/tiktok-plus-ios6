@@ -146,6 +146,7 @@ static const CGFloat TKTagTileSize = 84;
 }
 
 - (CGFloat)headerHeightForWidth:(CGFloat)width { return [(TKHashtagHeaderView *)[self headerView] layoutForWidth:width apply:NO]; }
+- (NSString *)webPageURL { return [@"https://www.tiktok.com/tag/" stringByAppendingString:[TKUtils urlEncode:self.name]]; }
 - (NSString *)emptyMessage { return self.hashtag ? L(@"No videos to show.") : L(@"This hashtag was not found."); }
 - (NSString *)feedTitle { return [@"#" stringByAppendingString:self.name]; }
 

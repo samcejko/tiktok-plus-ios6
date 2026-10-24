@@ -6,6 +6,7 @@
 #import "TKTheme.h"
 #import "TKUtils.h"
 #import "TKCommon.h"
+#import "TKExternalOpen.h"
 
 static NSString * const TKGridCellId = @"video";
 static NSString * const TKGridHeaderId = @"header";
@@ -168,6 +169,7 @@ static const NSTimeInterval TKGridRetryAfter = 5;   // a failed "more" is not as
 
 // Under the last row: a spinner while a page loads, or a note (nothing there, an error)
 @interface TKGridFooter : UICollectionReusableView
+@property (nonatomic, strong) UIButton *browserButton;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 @property (nonatomic, strong) UILabel *label;
 @end
@@ -187,6 +189,14 @@ static const NSTimeInterval TKGridRetryAfter = 5;   // a failed "more" is not as
         _label.textAlignment = NSTextAlignmentCenter;
         _label.numberOfLines = 0;
         [self addSubview:_label];
+        _browserButton=[UIButton buttonWithType:UIButtonTypeCustom];
+        [_browserButton setTitle:L(@"Open in browser") forState:UIControlStateNormal];
+        [_browserButton setTitleColor:[[TKTheme shared] primaryTextColor] forState:UIControlStateNormal];
+        [_browserButton setBackgroundImage:[[TKTheme shared] buttonImageHighlighted:NO] forState:UIControlStateNormal];
+        [_browserButton setBackgroundImage:[[TKTheme shared] buttonImageHighlighted:YES] forState:UIControlStateHighlighted];
+        _browserButton.titleLabel.font=[UIFont boldSystemFontOfSize:14];
+        _browserButton.hidden=YES;
+        [self addSubview:_browserButton];
     }
     return self;
 }
@@ -196,7 +206,9 @@ static const NSTimeInterval TKGridRetryAfter = 5;   // a failed "more" is not as
     [super layoutSubviews];
     CGSize s = self.bounds.size;
     self.spinner.center = CGPointMake(s.width / 2, s.height / 2);
-    self.label.frame = CGRectMake(24, 0, s.width - 48, s.height);
+    self.label.frame = CGRectMake(24, 0, s.width - 48, self.browserButton.hidden ? s.height : s.height-54);
+    CGFloat width=MIN(220,s.width-48);
+    self.browserButton.frame=CGRectMake(floorf((s.width-width)/2),s.height-48,width,36);
 }
 
 @end
@@ -264,6 +276,13 @@ static const NSTimeInterval TKGridRetryAfter = 5;   // a failed "more" is not as
 - (NSUInteger)supportedInterfaceOrientations { return TKIsPad() ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskPortrait; }
 
 #pragma mark - For subclasses
+
+- (NSString *)webPageURL { return nil; }
+- (void)openInBrowser
+{
+    NSString *url=[self webPageURL];
+    if(url.length)[TKExternalOpen presentOpenInForURL:[NSURL URLWithString:url] from:self anchor:self.view];
+}
 
 - (TKHTTPTask *)fetchPageAfterFirst:(BOOL)more completion:(void (^)(NSArray *, BOOL, NSError *))completion
 {
@@ -374,6 +393,9 @@ static const NSTimeInterval TKGridRetryAfter = 5;   // a failed "more" is not as
     TKGridFooter *footer = [cv dequeueReusableSupplementaryViewOfKind:kind withReuseIdentifier:TKGridFooterId forIndexPath:ip];
     if (self.loading) [footer.spinner startAnimating]; else [footer.spinner stopAnimating];
     footer.label.text = self.loading ? @"" : (self.message ?: @"");
+    footer.browserButton.hidden=self.loading || !self.message.length || ![self webPageURL].length;
+    [footer.browserButton removeTarget:nil action:NULL forControlEvents:UIControlEventTouchUpInside];
+    [footer.browserButton addTarget:self action:@selector(openInBrowser) forControlEvents:UIControlEventTouchUpInside];
     return footer;
 }
 
@@ -386,7 +408,7 @@ static const NSTimeInterval TKGridRetryAfter = 5;   // a failed "more" is not as
 - (CGSize)collectionView:(UICollectionView *)cv layout:(UICollectionViewLayout *)layout referenceSizeForFooterInSection:(NSInteger)section
 {
     if (self.loading) return CGSizeMake(cv.bounds.size.width, self.videos.count ? 64 : 120);
-    if (self.message.length) return CGSizeMake(cv.bounds.size.width, 120);
+    if (self.message.length) return CGSizeMake(cv.bounds.size.width, [self webPageURL].length ? 180 : 120);
     return CGSizeMake(cv.bounds.size.width, 24);
 }
 

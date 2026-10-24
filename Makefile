@@ -67,6 +67,11 @@ before-package::
 		'exit 0' > "$(THEOS_STAGING_DIR)/DEBIAN/postrm"
 	chmod 0755 "$(THEOS_STAGING_DIR)/DEBIAN/postinst" "$(THEOS_STAGING_DIR)/DEBIAN/postrm"
 else
+before-package::
+	printf '%s\n' '#!/bin/sh' '[ "$$1" = configure ] || exit 0' \
+		'command -v uicache >/dev/null 2>&1 && uicache >/dev/null 2>&1 || true' \
+		'exit 0' > "$(THEOS_STAGING_DIR)/DEBIAN/postinst"
+	chmod 0755 "$(THEOS_STAGING_DIR)/DEBIAN/postinst"
 # The iOS 9.3 SDK places the NSURL* loading classes in CFNetwork; on iOS 6 they live in Foundation and dyld aborts at
 # launch when the binary asks CFNetwork for them. The app avoids those classes, but should the linker still record
 # CFNetwork, the load command is pointed at Foundation (harmless when there is none), then the binary is signed again.

@@ -97,7 +97,7 @@ static NSString *TKSisterTitle(NSString *name)
     return name;
 }
 
-+ (BOOL)isWebURL:(NSURL *)url { return url && [[url.scheme lowercaseString] hasPrefix:@"http"]; }
++ (BOOL)isWebURL:(NSURL *)url { NSString *scheme=url.scheme.lowercaseString; return url.host.length && ([scheme isEqualToString:@"https"] || [scheme isEqualToString:@"http"]); }
 
 + (void)openInSafari:(NSURL *)url
 {

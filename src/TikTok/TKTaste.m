@@ -67,14 +67,14 @@ static BOOL TKGenericTag(NSString *tag)
 
 + (NSArray *)topicIds
 {
-    return @[ @100, @101, @102, @103, @104, @105, @106, @107, @108, @109,
+    return @[ @120, @100, @101, @102, @103, @104, @105, @106, @107, @108, @109,
               @110, @111, @112, @113, @114, @115, @116, @117, @118, @119 ];
 }
 
 + (NSString *)topicName:(NSInteger)topicId
 {
     static NSDictionary *names;
-    if (!names) names = @{ @100: @"Anime & Comics", @101: @"Shows", @102: @"Beauty Care", @103: @"Games", @104: @"Comedy",
+    if (!names) names = @{ @120: @"All", @100: @"Anime & Comics", @101: @"Shows", @102: @"Beauty Care", @103: @"Games", @104: @"Comedy",
                            @105: @"Daily Life", @106: @"Family", @107: @"Relationship", @108: @"Drama", @109: @"Outfit",
                            @110: @"Lipsync", @111: @"Food", @112: @"Sports", @113: @"Animals", @114: @"Society",
                            @115: @"Cars", @116: @"Education", @117: @"Fitness & Health", @118: @"Technology",

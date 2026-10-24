@@ -52,6 +52,7 @@ static const NSUInteger TKSearchListMax = 40;     // rows per tab
     }];
 }
 
+- (NSString *)webPageURL { return [@"https://www.tiktok.com/search?q=" stringByAppendingString:[TKUtils urlEncode:self.query]]; }
 - (NSString *)emptyMessage { return L(@"Nothing found."); }
 - (NSString *)feedTitle { return self.query; }
 
@@ -170,6 +171,7 @@ static const NSUInteger TKSearchListMax = 40;     // rows per tab
 {
     NSString *q = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if (!q.length) return;
+    if ([TKLinkRouter openLink:q]) { [self.searchBar resignFirstResponder]; return; }
     self.searchBar.text = q;
     [self.searchBar resignFirstResponder];
     [TKSettings addSearch:q];

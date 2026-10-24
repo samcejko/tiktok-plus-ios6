@@ -286,6 +286,7 @@ static const CGFloat TKStatsHeight = 52;
 
 - (CGFloat)headerHeightForWidth:(CGFloat)width { return [(TKProfileHeaderView *)[self headerView] layoutForWidth:width apply:NO]; }
 
+- (NSString *)webPageURL { return [@"https://www.tiktok.com/@" stringByAppendingString:[TKUtils urlEncode:self.handle]]; }
 - (NSString *)emptyMessage { return self.profile.isPrivate ? L(@"This account is private.") : (self.profile.postsUnavailable ? L(@"TikTok did not provide this profile’s posts. Pull down to try again.") : L(@"No public posts to show.")); }
 - (NSString *)feedTitle { return [@"@" stringByAppendingString:self.profile.handle.length ? self.profile.handle : self.handle]; }
 

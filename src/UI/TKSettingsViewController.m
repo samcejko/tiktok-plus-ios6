@@ -15,7 +15,7 @@
 #import "TKUtils.h"
 #import "TKCommon.h"
 
-enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, SecData, SecAbout, SecCount };
+enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecAbout, SecCount };
 
 @interface TKSettingsViewController () <UIAlertViewDelegate>
 @end
@@ -49,7 +49,6 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
         case SecFeed: return 3;
         case SecPlayback: return 3;
         case SecAppearance: return 1;
-        case SecNetwork: return 0;
         case SecData: return 2;
         case SecAbout: return 2;
     }
@@ -64,7 +63,6 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
         case SecFeed: return L(@"Explore");
         case SecPlayback: return L(@"Playback");
         case SecAppearance: return L(@"Appearance");
-        case SecNetwork: return L(@"Network");
         case SecData: return L(@"Data");
         case SecAbout: return L(@"About");
     }
@@ -150,8 +148,6 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (s == SecAppearance) {
         cell.textLabel.text = L(@"Dark theme"); cell.accessoryView = [self switchOn:[TKTheme shared].isDark tag:30]; cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    } else if (s == SecNetwork) {
-        cell.textLabel.text = L(@"Verify certificates"); cell.accessoryView = [self switchOn:[TKSettings verifyTLS] tag:40]; cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (s == SecData) {
         cell.textLabel.text = r == 0 ? L(@"Clear image cache") : L(@"Clear saved videos");
         if (r == 1) cell.textLabel.textColor = [UIColor colorWithRed:0.8 green:0.2 blue:0.2 alpha:1];

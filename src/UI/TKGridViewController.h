@@ -31,6 +31,7 @@
 - (UIView *)headerView;                       // built once by the subclass; nil = none
 - (CGFloat)headerHeightForWidth:(CGFloat)width;
 - (void)headerChanged;                        // the header's content (and so its height) changed
+- (NSString *)webPageURL; // optional browser fallback when TikTok refuses a native request
 - (NSString *)emptyMessage;                   // when the first page has nothing
 - (NSString *)feedTitle;                      // over the videos opened from the grid
 @end

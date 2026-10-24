@@ -670,7 +670,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     NSMutableArray *actions = [NSMutableArray array];
     [sheet addButtonWithTitle:cell.fastPlayback ? L(@"Play at normal speed") : L(@"Play at 2× speed")];
     [actions addObject:@(TKVideoMenuSpeed)];
-    if ([TKSession sharedSession].signedIn) {
+    if ([TKSession sharedSession].signedIn && [TKSettings allowAccountWrites]) {
         [sheet addButtonWithTitle:L(@"Like on TikTok")];
         [actions addObject:@(TKVideoMenuLike)];
     }
@@ -890,7 +890,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 - (NSDictionary *)diagnosticState
 {
     TKVideoCell *cell=[self currentCell];
-    return @{@"count":@([self count]),@"index":@(self.currentIndex),@"mode":@(self.feedMode),@"loading":@(self.feed.loading),
+    return @{@"playback":[cell playbackDiagnostics] ?: @{},@"count":@([self count]),@"index":@(self.currentIndex),@"mode":@(self.feedMode),@"loading":@(self.feed.loading),
         @"videoId":cell.video.videoId ?: @"",@"time":@(isfinite(cell.currentTime)?cell.currentTime:0),@"duration":@(isfinite(cell.duration)?cell.duration:0),
         @"playing":@(cell.playing),@"rate":@([cell playerRate]),@"photo":@(cell.video.isPhoto),@"visible":@(self.visible),@"error":self.messageLabel.hidden ? @"" : (self.messageLabel.text ?: @"")};
 }

@@ -1160,4 +1160,9 @@ static FourCharCode TKFourCC(const char *s)
     self.photoPager.delegate = nil;
 }
 
+- (NSDictionary *)playbackDiagnostics
+{
+    NSError *e=self.item.error;NSError *under=e.userInfo[NSUnderlyingErrorKey];
+    return @{@"itemStatus":@(self.item.status),@"readyForDisplay":@(self.playerLayer.readyForDisplay),@"errorCode":@(e.code),@"errorDomain":e.domain ?: @"",@"underlyingCode":@(under.code),@"underlyingDomain":under.domain ?: @"",@"message":self.errorLabel.hidden ? @"" : (self.errorLabel.text ?: @""),@"proxy":[[TKMediaProxy shared] statsDescription] ?: @"",@"photos":[self debugPhotoState] ?: @""};
+}
 @end

@@ -52,5 +52,6 @@
 - (void)simulateLongPress;
 - (void)simulateScrubTo:(CGFloat)fraction;
 - (float)playerRate;
+- (NSDictionary *)playbackDiagnostics;
 - (NSString *)debugPhotoState;
 @end

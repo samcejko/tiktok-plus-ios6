@@ -14,7 +14,7 @@ import tempfile
 from PIL import Image, ImageDraw, ImageFont
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "Resources"
-APP_NAME = "TikTak"
+APP_NAME = "TikTak+"
 os.makedirs(OUT, exist_ok=True)
 
 FONT_CANDIDATES = [

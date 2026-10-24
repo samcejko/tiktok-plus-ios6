@@ -27,7 +27,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     dispatch_once(&once, ^{
         client = [[self alloc] init]; client.anonymousCookies = [NSMutableArray array]; client.pending = [NSMutableDictionary dictionary];
         client.liveAuthors = [NSMutableDictionary dictionary]; client.warmWaiters=[NSMutableArray array];
-        NSString *saved = [TKKeychain secureStringForKey:TKDirectKey];
+        NSString *saved = [[NSUserDefaults standardUserDefaults] boolForKey:@"direct.signedOut"] ? nil : [TKKeychain secureStringForKey:TKDirectKey];
         NSDictionary *d = TKDict([TKUtils JSONObjectFromData:[saved dataUsingEncoding:NSUTF8StringEncoding]]);
         NSError *error = nil; NSArray *jar = [TKDirectParser cookiesFromString:TKStr(d[@"cookies"]) ?: @"" error:&error];
         if (jar.count && TKStr(d[@"token"]).length && TKStr(TKDict(d[@"user"])[@"userId"]).length && TKStr(TKDict(d[@"user"])[@"handle"]).length) {
@@ -345,6 +345,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
     TKDirectClient *c=[self shared];NSDictionary *d=c.pending[token];if(!d)return NO;
     NSString *s=[[NSString alloc] initWithData:[TKUtils JSONDataFromObject:d] encoding:NSUTF8StringEncoding];
     if(![TKKeychain setSecureString:s forKey:TKDirectKey])return NO;
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"direct.signedOut"];[[NSUserDefaults standardUserDefaults] synchronize];
     c.session=d;c.accountCookies=[[TKDirectParser cookiesFromString:d[@"cookies"] error:nil] mutableCopy];return YES;
 }
 + (TKHTTPTask *)validate:(void (^)(BOOL,NSDictionary *,NSError *))completion
@@ -363,6 +364,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
 }
 + (void)signOut
 {
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"direct.signedOut"];[[NSUserDefaults standardUserDefaults] synchronize];
     TKDirectClient *c=[self shared];c.session=nil;c.accountCookies=nil;[c.pending removeAllObjects];[c.liveAuthors removeAllObjects];
     [TKKeychain setSecureString:nil forKey:TKDirectKey];
 }

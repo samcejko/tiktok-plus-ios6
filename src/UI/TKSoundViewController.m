@@ -174,6 +174,7 @@ static const CGFloat TKPlaySize = 46;
 }
 
 - (CGFloat)headerHeightForWidth:(CGFloat)width { return [(TKSoundHeaderView *)[self headerView] layoutForWidth:width apply:NO]; }
+- (NSString *)webPageURL { return [@"https://www.tiktok.com/music/-" stringByAppendingString:[TKUtils urlEncode:self.soundId]]; }
 - (NSString *)emptyMessage { return self.sound ? L(@"No videos to show.") : L(@"This sound was not found."); }
 - (NSString *)feedTitle { return self.title; }
 
