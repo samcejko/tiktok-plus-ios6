@@ -184,8 +184,7 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
             NSMutableDictionary *q=[NSMutableDictionary dictionary]; [self addDeviceParameters:q context:ctx jar:jar]; [q addEntriesFromDictionary:spec[@"params"]];
             NSString *encoded=[self query:q]; NSDictionary *signatures=TKModernWebSignatures(encoded,@"",TKWebUA); NSString *gnarly=signatures[@"X-Gnarly"];
             if(!gnarly.length) { finish(nil,[self unavailable]); return; }
-            encoded=[encoded stringByAppendingFormat:@"&X-Bogus=%@",[TKUtils urlEncode:TKWebSignature(encoded,TKWebUA,(uint32_t)[[NSDate date] timeIntervalSince1970])]];
-            encoded=[encoded stringByAppendingFormat:@"&X-Gnarly=%@",[TKUtils urlEncode:gnarly]];
+            // SDK 5.3.2 authenticates the exact URL query with signature headers.
             NSString *url=[NSString stringWithFormat:@"https://www.tiktok.com%@?%@",spec[@"path"],encoded];
             NSMutableDictionary *h=[@{@"User-Agent":TKWebUA,@"Referer":@"https://www.tiktok.com/",@"Origin":@"https://www.tiktok.com",@"Accept":@"application/json",@"Content-Type":@"application/x-www-form-urlencoded",@"tt-csrf-token":csrf,@"Cookie":[self cookieHeader:jar URL:[NSURL URLWithString:url]]} mutableCopy]; [h addEntriesFromDictionary:signatures];
             part=[TKHTTP request:@"POST" url:url headers:h body:[NSData data] retries:0 completion:^(NSInteger status,NSData *body,NSDictionary *responseHeaders,NSError *writeError){
