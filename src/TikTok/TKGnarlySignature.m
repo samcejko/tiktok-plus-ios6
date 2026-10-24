@@ -27,15 +27,6 @@ static NSString *TKGmd5(NSString *s)
     CC_MD5(d.bytes,(CC_LONG)d.length,hash); NSMutableString *hex=[NSMutableString string];
     for(unsigned i=0;i<sizeof(hash);i++)[hex appendFormat:@"%02x",hash[i]]; return hex;
 }
-static void TKGfield(NSMutableData *out,uint8_t key,id value)
-{
-    NSData *data=nil; uint8_t bytes[4];
-    if([value isKindOfClass:[NSNumber class]]) {
-        uint32_t n=[value unsignedIntValue]; NSUInteger size=n>0xffffff ? 4 : (n>0xffff ? 3 : (n>0xff ? 2 : 1));
-        for(NSUInteger i=0;i<size;i++)bytes[i]=(uint8_t)(n>>(8*(size-i-1))); data=[NSData dataWithBytes:bytes length:size];
-    } else data=[value dataUsingEncoding:NSUTF8StringEncoding];
-    uint8_t header[]={key,(uint8_t)(data.length>>8),(uint8_t)data.length}; [out appendBytes:header length:3]; [out appendData:data];
-}
 static NSString *TKGbase64(NSData *data)
 {
     static const char alphabet[]="u09tbS3UvgDEe6r-ZVMXzLpsAohTn7mdINQlW412GqBjfYiyk8JORCF5/xKHwacP=";
@@ -61,85 +52,82 @@ static NSString *TKGseal(NSMutableData *cipher,NSData *entropy)
     [out appendBytes:bytes length:sum]; [out appendBytes:e length:48]; [out appendBytes:bytes+sum length:cipher.length-sum];
     return TKGbase64(out);
 }
-NSString *TKGnarlySignatureFixture(NSString *query,NSString *body,NSString *userAgent,uint64_t ms,NSData *entropy,uint32_t total,uint32_t intercepted)
-{
-    if(entropy.length!=54 || query.length>65536 || body.length>16384 || userAgent.length>2048)return nil;
-    const uint8_t *e=entropy.bytes;
-    uint32_t field14=(65u<<16)|((uint32_t)e[48]<<8)|e[49];
-    uint32_t field15=((uint32_t)e[50]<<24)|((uint32_t)e[51]<<16)|((uint32_t)e[52]<<8)|e[53];
-    NSMutableDictionary *fields=[@{@1:@65,@2:@4,@3:TKGmd5(query),@4:TKGmd5(body),@5:TKGmd5(userAgent),@6:@((uint32_t)(ms/1000)),@7:@3181061566u,@8:@((uint32_t)(ms%0x80000000ULL)),@9:@"5.1.3-ZTCA",@10:@"1.0.0.368",@11:@1,@12:@(total),@13:@(intercepted),@14:@(field14),@15:@(field15)} mutableCopy];
-    uint32_t checksum=0; for(id value in fields.allValues)if([value isKindOfClass:[NSNumber class]])checksum^=[value unsignedIntValue]; fields[@0]=@(checksum);
-    uint8_t count=16; NSMutableData *cipher=[NSMutableData dataWithBytes:&count length:1];
-    for(NSNumber *key in @[@1,@2,@6,@7,@8,@9,@10,@11,@4,@5,@3,@12,@13,@14,@15,@0])TKGfield(cipher,[key unsignedCharValue],fields[key]);
-    return TKGseal(cipher,entropy);
-}
-NSString *TKGnarlySignature(NSString *query,NSString *body,NSString *userAgent)
-{
-    uint8_t entropy[54]; if(SecRandomCopyBytes(kSecRandomDefault,sizeof(entropy),entropy)!=errSecSuccess)return nil;
-    static uint32_t requests=0; uint32_t counter; @synchronized([NSDate class]) { counter=++requests; }
-    return TKGnarlySignatureFixture(query,body,userAgent,(uint64_t)([[NSDate date] timeIntervalSince1970]*1000),[NSData dataWithBytes:entropy length:sizeof(entropy)],counter,counter);
-}
 
-// 5.3.2 record layouts adapted from n1tr00's MIT-licensed implementation,
-// preserved by lunar-me/tiktok-web-signature. Its full license is bundled too.
-static NSData *TKGpack(uint32_t n)
+// Record layout/query binding adapted from Evil0ctal/Douyin_TikTok_Download_API,
+// Apache-2.0. See docs/licenses/tiktok-signature-Apache-2.0.txt and attribution.
+static NSData *TKGbe(uint32_t n,NSUInteger size)
 {
-    uint8_t b[4]={(uint8_t)(n>>24),(uint8_t)(n>>16),(uint8_t)(n>>8),(uint8_t)n};
-    return n<0xfe01 ? [NSData dataWithBytes:b+2 length:2] : [NSData dataWithBytes:b length:4];
-}
-static uint32_t TKGprefix(NSString *s)
-{
-    NSData *d=[s dataUsingEncoding:NSUTF8StringEncoding]; const uint8_t *p=d.bytes; uint32_t n=0;
-    for(NSUInteger i=0;i<MIN((NSUInteger)4,d.length);i++)n=(n<<8)|p[i]; return n;
+    uint8_t b[]={(uint8_t)(n>>24),(uint8_t)(n>>16),(uint8_t)(n>>8),(uint8_t)n};return [NSData dataWithBytes:b+4-size length:size];
 }
 static uint32_t TKGhash(NSString *s)
 {
-    NSData *d=[(s ?: @"") dataUsingEncoding:NSUTF8StringEncoding]; const uint8_t *p=d.bytes; uint32_t n=2166136260u;
-    for(NSUInteger i=0;i<d.length;i++)n=((n^p[i])*16777619u)*33u; return n;
+    NSData *d=[(s ?: @"") dataUsingEncoding:NSUTF8StringEncoding];const uint8_t *p=d.bytes;uint32_t n=2166136260u;
+    for(NSUInteger i=0;i<d.length;i++)n=((n^p[i])*16777619u)*33u;return n;
 }
-static NSData *TKGhashData(NSString *s)
+static uint32_t TKGprefix(NSString *s)
 {
-    uint32_t n=TKGhash(s); uint8_t b[]={(uint8_t)(n>>24),(uint8_t)(n>>16),(uint8_t)(n>>8),(uint8_t)n}; return [NSData dataWithBytes:b length:4];
+    NSData *d=[s dataUsingEncoding:NSUTF8StringEncoding];const uint8_t *p=d.bytes;uint32_t n=0;
+    for(NSUInteger i=0;i<MIN((NSUInteger)4,d.length);i++)n=(n<<8)|p[i];return n;
 }
-static NSData *TKGencodedField(id value,BOOL nonce)
+static NSData *TKGfield(id value,BOOL nonce)
 {
-    NSString *s=[value description]; NSUInteger length=s.length; NSMutableData *d=[NSMutableData dataWithLength:MAX(length,(NSUInteger)4)+2]; uint8_t *p=d.mutableBytes;
+    NSString *s=[value description];NSUInteger length=s.length;NSMutableData *d=[NSMutableData dataWithLength:MAX(length+2,(NSUInteger)6)];uint8_t *p=d.mutableBytes;
     for(NSUInteger i=0;i<length;i++) {
-        uint32_t c=[s characterAtIndex:i],v;
-        if(nonce) { v=((c^(102u+(uint32_t)i))+(i&0xaa))^0xa5; v=(v<<1)+((v<<1)>>8); p[i]=(uint8_t)v^0xbb; }
-        else { v=((c^((103u+(uint32_t)i)&0xff))+((i&0xaa)+1))&0xff; v=(v<<2)|(v>>6); p[i]=(uint8_t)(((v&0xff)^0xbb)+1); }
+        uint32_t v=([s characterAtIndex:i]^((nonce?102u:103u)+(uint32_t)i));v=(v+(nonce?0:1)+(i&170))&255;
+        if(nonce)v^=165;unsigned rotation=nonce?1:2;v=((v<<rotation)|(v>>(8-rotation)))&255;
+        p[i]=(uint8_t)((v^187)+(nonce?0:1));
     }
-    for(NSUInteger i=length;i<4;i++)p[i]=(uint8_t)(0xdd+i);
-    p[d.length-2]=(uint8_t)(length>>8); p[d.length-1]=(uint8_t)length; return d;
+    for(NSUInteger i=length;i<d.length-2;i++)p[i]=(uint8_t)(221+i);
+    p[d.length-2]=0;p[d.length-1]=(uint8_t)length;return d;
 }
-NSDictionary *TKModernWebSignaturesFixture(NSString *query,NSString *body,NSString *ua,uint32_t ts,uint32_t f8,NSData *entropy,uint32_t total,uint32_t intercepted)
+static NSMutableData *TKGpack(NSDictionary *fields,BOOL count)
 {
-    if(entropy.length!=96 || query.length>65536 || body.length>16384 || ua.length>2048)return nil;
-    uint32_t canvas=2316120563u,half=(ts>>16)^(f8>>16)^(ts&0xffff)^(f8&0xffff),field14=(65u<<16)|half;
-    uint32_t field15=((((canvas&0xffff)^(f8>>16))&0xffff)<<16)|((ts&0xffff)^(f8&0xffff));
-    NSMutableDictionary *fields=[@{@1:@65,@2:@0,@3:TKGmd5(query),@4:TKGmd5(body),@5:TKGmd5(ua),@6:@(ts),@7:@(canvas),@8:@(f8),@9:@"5.3.2",@10:@"1.0.0.417",@11:@1,@12:@(total),@13:@(intercepted),@14:@(field14),@15:@(field15)} mutableCopy];
-    uint32_t all=0,ints=0; for(NSNumber *key in fields.allKeys) { id v=fields[key]; if([v isKindOfClass:[NSNumber class]]) { all^=[v unsignedIntValue]; ints^=[v unsignedIntValue]; } else all^=TKGprefix(v); }
-    fields[@16]=@(all); fields[@0]=@(ints^all);
-    uint8_t order[17];for(unsigned i=0;i<17;i++)order[i]=(uint8_t)i;
-    uint32_t shuffle=f8; for(unsigned i=16;i>0;i--) { shuffle=1664525u*shuffle+1013904223u; unsigned j=(unsigned)(((uint64_t)shuffle*(i+1))>>32); uint8_t x=order[i];order[i]=order[j];order[j]=x; }
-    uint8_t count=17;NSMutableData *gnarly=[NSMutableData dataWithBytes:&count length:1];
-    for(unsigned i=0;i<17;i++) {
-        uint8_t key=order[i];id v=fields[@(key)];NSData *value=[v isKindOfClass:[NSNumber class]] ? TKGpack([v unsignedIntValue]) : [v dataUsingEncoding:NSUTF8StringEncoding];
-        [gnarly appendBytes:&key length:1];[gnarly appendData:TKGpack((uint32_t)value.length)];[gnarly appendData:value];
-    }
-    const uint8_t fixed[]={94,222,223,224,0,1};NSData *fixedData=[NSData dataWithBytes:fixed length:6];
-    NSMutableArray *values=[@[
-        fixedData,fixedData,fixedData,TKGencodedField(@"0",NO),TKGencodedField(@(field14),NO),TKGencodedField(@(intercepted),NO),TKGencodedField(@65,NO),TKGencodedField(@(ts),NO),TKGencodedField(@"0",NO),TKGencodedField(@"0",NO),TKGencodedField(@"5.3.2",NO),TKGhashData(body),TKGencodedField(@(canvas),NO),TKGencodedField(@"0",NO),TKGhashData(query),TKGencodedField(@(total),NO),TKGhashData(ua),TKGencodedField(@"1.0.0.417",NO),TKGencodedField(@"1.0.0.2858",NO),TKGencodedField(@"0",NO),TKGencodedField(@(f8),NO),TKGencodedField(@"www.tiktok.com/",NO),TKGencodedField(@0,NO),TKGencodedField(@"0",NO),TKGhashData(@"")
-    ] mutableCopy];
-    uint32_t checksum=0;for(NSData *v in values)if(v.length>1)checksum^=((const uint8_t *)v.bytes)[1];values[0]=TKGencodedField(@(checksum),YES);
-    NSMutableData *dynosaur=[NSMutableData data];for(unsigned i=0;i<values.count;i++) { uint8_t tag=0x20+i;NSData *value=values[i];[dynosaur appendBytes:&tag length:1];[dynosaur appendData:TKGpack((uint32_t)value.length)];[dynosaur appendData:value]; }
-    return @{@"X-Gnarly":TKGseal(gnarly,[entropy subdataWithRange:NSMakeRange(0,48)]),@"X-Dynosaur":TKGseal(dynosaur,[entropy subdataWithRange:NSMakeRange(48,48)])};
+    NSMutableData *out=[NSMutableData data];if(count){uint8_t size=(uint8_t)fields.count;[out appendBytes:&size length:1];}
+    for(NSNumber *key in [fields.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        NSData *value=fields[key];uint8_t h[]={[key unsignedCharValue],0,(uint8_t)value.length};[out appendBytes:h length:3];[out appendData:value];
+    }return out;
 }
-NSDictionary *TKModernWebSignatures(NSString *query,NSString *body,NSString *ua)
+static NSString *TKGescape(NSString *value)
+{
+    NSData *d=[value dataUsingEncoding:NSUTF8StringEncoding];const uint8_t *p=d.bytes;NSMutableString *s=[NSMutableString string];
+    for(NSUInteger i=0;i<d.length;i++) {
+        uint8_t c=p[i];
+        // Preserve browser punctuation while keeping user text inside its own parameter.
+        if(c>32 && c<=126 && !strchr("\"<>`#%&=+?\\",c))[s appendFormat:@"%c",c];
+        else [s appendFormat:@"%%%02X",c];
+    }return s;
+}
+NSString *TKCurrentBusinessQuery(NSDictionary *parameters)
+{
+    NSMutableArray *pairs=[NSMutableArray array];for(NSString *key in [parameters.allKeys sortedArrayUsingSelector:@selector(compare:)])
+        [pairs addObject:[NSString stringWithFormat:@"%@=%@",TKGescape(key),TKGescape([parameters[key] description])]];
+    return [pairs componentsJoinedByString:@"&"];
+}
+NSString *TKCurrentSignedQueryFixture(NSString *query,NSString *body,NSString *ua,NSString *msToken,uint32_t ts,uint32_t nonce,uint32_t nonce2,uint32_t sequence,NSData *entropy)
+{
+    NSString *token=msToken ?: @"";
+    if(entropy.length!=96 || query.length>65536 || body.length>16384 || ua.length>2048 || token.length>4096 || [token rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-/+="] invertedSet]].location!=NSNotFound)return nil;
+    uint32_t mixed=(((ts>>16)^(nonce>>16)^ts^nonce)&0xffff)|(65u<<16);
+    NSMutableDictionary *dyn=[@{
+        @0x20:TKGfield(@"0",NO),@0x21:TKGfield(@"1",YES),@0x22:TKGfield(@"1",YES),@0x23:TKGfield(@"0",NO),@0x24:TKGfield(@(mixed),NO),@0x25:TKGfield(@(sequence),NO),@0x26:TKGfield(@65,NO),@0x27:TKGfield(@(ts),NO),@0x28:TKGfield(@"0",NO),@0x29:TKGfield(@"0",NO),@0x2a:TKGfield(@"5.3.2",NO),@0x2b:TKGbe(TKGhash(@""),4),@0x2c:TKGfield(@"-1",NO),@0x2d:TKGfield(@"0",NO),@0x2e:TKGbe(TKGhash(query),4),@0x2f:TKGfield(@(sequence),NO),@0x30:TKGbe(TKGhash(ua),4),@0x31:TKGfield(@"2.0.0.561",NO),@0x32:TKGfield(@"0",NO),@0x33:TKGfield(@"0",NO),@0x34:TKGfield(@(nonce),NO),@0x35:TKGfield(@"www.tiktok.com/",NO),@0x36:TKGfield(@8,NO),@0x37:TKGfield(@"0",NO),@0x38:TKGbe(0xc46ce353u,4)
+    } mutableCopy];
+    uint32_t checksum=0;for(NSData *v in dyn.allValues)checksum^=((const uint8_t *)v.bytes)[1];dyn[@0x20]=TKGfield(@(checksum),YES);
+    NSString *dynosaur=TKGseal(TKGpack(dyn,NO),[entropy subdataWithRange:NSMakeRange(0,48)]);
+    // The request seal covers these two parameters, before the literal X-Bogus=1.
+    NSString *covered=[NSString stringWithFormat:@"%@&X-Dynosaur=%@&msToken=%@",query,dynosaur,token];
+    NSString *qm=TKGmd5(covered),*bm=TKGmd5(body),*um=TKGmd5(ua);
+    NSArray *logical=@[@0,@65,@8,qm,bm,um,@(ts),@0,@(nonce),@"5.3.2",@"2.0.0.561",@1,@(sequence),@(sequence),@(mixed),@(nonce2)];
+    uint32_t first=0xffffffffu,second=0xffffffffu;
+    for(id v in logical)if([v isKindOfClass:[NSNumber class]]){first^=[v unsignedIntValue];second^=[v unsignedIntValue];}else first^=TKGprefix(v);
+    second^=first;
+    NSDictionary *gnarly=@{@0:TKGbe(second,4),@1:TKGbe(65,2),@2:TKGbe(8,2),@3:[qm dataUsingEncoding:NSUTF8StringEncoding],@4:[bm dataUsingEncoding:NSUTF8StringEncoding],@5:[um dataUsingEncoding:NSUTF8StringEncoding],@6:TKGbe(ts,4),@8:TKGbe(nonce,4),@9:[@"5.3.2" dataUsingEncoding:NSUTF8StringEncoding],@10:[@"2.0.0.561" dataUsingEncoding:NSUTF8StringEncoding],@11:TKGbe(1,2),@12:TKGbe(sequence,2),@13:TKGbe(sequence,2),@14:TKGbe(mixed,4),@15:TKGbe(nonce2,4),@16:TKGbe(first,4)};
+    NSString *seal=TKGseal(TKGpack(gnarly,YES),[entropy subdataWithRange:NSMakeRange(48,48)]);
+    return [covered stringByAppendingFormat:@"&X-Bogus=1&X-Gnarly=%@",seal];
+}
+NSString *TKCurrentSignedQuery(NSString *query,NSString *body,NSString *ua,NSString *msToken)
 {
     uint8_t entropy[96];if(SecRandomCopyBytes(kSecRandomDefault,sizeof(entropy),entropy)!=errSecSuccess)return nil;
-    uint32_t entropySeed=entropy[0]*7;
-    static uint32_t sessionValue;static dispatch_once_t once;dispatch_once(&once,^{uint64_t ms=(uint64_t)([[NSDate date] timeIntervalSince1970]*1000);sessionValue=(uint32_t)((ms*1000+entropySeed)%0x80000000ULL);});
-    static uint32_t requests;uint32_t counter;@synchronized([NSDate class]){counter=++requests;}
-    return TKModernWebSignaturesFixture(query,body,ua,(uint32_t)[[NSDate date] timeIntervalSince1970],sessionValue,[NSData dataWithBytes:entropy length:sizeof(entropy)],counter,counter);
+    NSTimeInterval now=[[NSDate date] timeIntervalSince1970];uint32_t nonce=(uint32_t)((uint64_t)(now*1000000)&0xffffffffULL);
+    static uint32_t sequence;uint32_t call;@synchronized([NSDate class]){call=++sequence;}
+    return TKCurrentSignedQueryFixture(query,body,ua,msToken,(uint32_t)now,nonce,~nonce,call,[NSData dataWithBytes:entropy length:sizeof(entropy)]);
 }

@@ -1,4 +1,4 @@
-## 0.5.0 (15) — account actions (manual live validation pending)
+## 0.5.0 (16) — account actions (manual live validation pending)
 
 - Separate TikTok heart/like counter from clearly labeled local saved posts; double tap requests a TikTok like.
 - Direct signed-in like/unlike, follow/unfollow, comment/reply, comment like/unlike and own-comment deletion requests; server acknowledgement is required before changing UI state.
