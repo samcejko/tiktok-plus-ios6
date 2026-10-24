@@ -22,7 +22,7 @@ enum { SecTopics, SecLikes, SecDislikes, SecActions, SecCount };
     [super viewDidLoad];
     self.title = L(@"What it learned");
     [[TKTheme shared] applyToTableView:self.tableView];
-    if (self.navigationController.viewControllers.firstObject == self)
+    if (TKFirst(self.navigationController.viewControllers) == self)
         self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
 }
 

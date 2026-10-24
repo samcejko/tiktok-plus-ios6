@@ -178,6 +178,7 @@
         [videos addObject:v];
     }
     p.videos = videos;
+    p.postsUnavailable = TKBool(json[@"postsUnavailable"]);
     p.postsCursor = (long long)TKDbl(TKDict(json)[@"cursor"]);
     p.hasMorePosts = TKBool(TKDict(json)[@"hasMore"]) && p.postsCursor > 0;
     return p;

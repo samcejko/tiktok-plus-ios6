@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import "TKTikTok.h"
 #import "TKHTTP.h"
+#import "TKDirectClient.h"
 #import "TKSettings.h"
 #import "TKSession.h"
 #import "TKUtils.h"
@@ -8,19 +9,21 @@
 
 @implementation TKTikTok
 
-+ (BOOL)configured { return [TKSettings serverConfigured]; }
++ (BOOL)configured { return YES; }
 
 + (NSString *)urlForPath:(NSString *)path query:(NSString *)query
 {
-    NSString *base = [TKSettings serverBaseURL];
-    if (!base.length) return nil;
-    NSString *key = [TKSettings serverKey];
-    NSMutableString *url = [NSMutableString stringWithFormat:@"%@%@", base, path];
-    NSMutableArray *q = [NSMutableArray array];
-    if (query.length) [q addObject:query];
-    if (key.length) [q addObject:[NSString stringWithFormat:@"k=%@", [TKUtils urlEncode:key]]];
-    if (q.count) [url appendFormat:@"?%@", [q componentsJoinedByString:@"&"]];
-    return url;
+    // Internal route identifiers, never network URLs. All data goes directly to TikTok.
+    return query.length ? [NSString stringWithFormat:@"%@?%@", path, query] : path;
+}
+
+// Preserve the model/UI facade while the direct transport normalizes TikTok's responses.
++ (TKHTTPTask *)directGET:(NSString *)route completion:(TKJSONCompletion)completion
+{
+    NSRange q = [route rangeOfString:@"?"];
+    NSString *path = q.location == NSNotFound ? route : [route substringToIndex:q.location];
+    NSString *query = q.location == NSNotFound ? nil : [route substringFromIndex:q.location+1];
+    return [TKDirectClient getPath:path query:query completion:completion];
 }
 
 + (NSError *)notConfigured
@@ -32,7 +35,7 @@
 {
     NSString *url = [self urlForPath:@"/health" query:nil];
     if (!url) { completion(NO, nil, [self notConfigured]); return; }
-    [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(NO, nil, error); return; }
         BOOL ok = TKBool(TKDict(json)[@"ok"]);
         completion(ok, TKStr(TKDict(json)[@"ytdlp"]), ok ? nil : TKMakeError(TKErrorAPI, L(@"The server answered but is not healthy.")));
@@ -43,7 +46,7 @@
 {
     NSString *url = [self urlForPath:@"/discover" query:[NSString stringWithFormat:@"cat=%ld&count=%ld&%@", (long)category, (long)count, [self formatPreference]]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         NSDictionary *batchHeaders = TKDict(TKDict(json)[@"headers"]);
         NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
@@ -64,7 +67,7 @@
     NSString *h = [handle hasPrefix:@"@"] ? [handle substringFromIndex:1] : handle;
     NSString *url = [self urlForPath:@"/user" query:[NSString stringWithFormat:@"name=%@&count=%ld", [TKUtils urlEncode:h], (long)count]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         NSMutableArray *videos = [NSMutableArray array];
         for (NSDictionary *item in TKArr(TKDict(json)[@"items"])) {
@@ -98,6 +101,10 @@
     if (r.authorLiveRoom.length) video.authorLiveRoom = r.authorLiveRoom;
     if (r.category && !video.category) video.category = r.category;
     if (r.lang.length && !video.lang.length) video.lang = r.lang;
+    video.subtitles = r.subtitles;
+    video.musicAuthor = r.musicAuthor;
+    video.musicCoverURL = r.musicCoverURL;
+    video.musicId = r.musicId;
     video.isPhoto = r.isPhoto;
     video.imageURLs = r.imageURLs;
     video.audioURL = r.audioURL;
@@ -119,7 +126,7 @@
     q = [q stringByAppendingFormat:@"&%@", [self formatPreference]];
     NSString *url = [self urlForPath:@"/resolve" query:q];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         BOOL hasPictures = TKArr(TKDict(json)[@"images"]).count > 0;    // a photo post: pictures instead of a video
         if (!TKStr(TKDict(json)[@"playUrl"]).length && !hasPictures) { completion(nil, TKMakeError(TKErrorAPI, L(@"This video could not be loaded."))); return; }
@@ -140,7 +147,7 @@
 {
     NSString *url = [self urlForPath:@"/comments" query:[NSString stringWithFormat:@"id=%@&count=%ld", [TKUtils urlEncode:videoId ?: @""], (long)count]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         NSMutableArray *comments = [NSMutableArray array];
         for (NSDictionary *item in TKArr(TKDict(json)[@"items"])) {
@@ -156,7 +163,7 @@
     NSString *url = [self urlForPath:@"/replies" query:[NSString stringWithFormat:@"id=%@&cid=%@&count=%ld", [TKUtils urlEncode:videoId ?: @""],
                                                          [TKUtils urlEncode:commentId ?: @""], (long)count]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         NSMutableArray *replies = [NSMutableArray array];
         for (NSDictionary *item in TKArr(TKDict(json)[@"items"])) {
@@ -173,7 +180,7 @@
     NSString *h = [handle hasPrefix:@"@"] ? [handle substringFromIndex:1] : handle;
     NSString *url = [self urlForPath:@"/profile" query:[NSString stringWithFormat:@"name=%@&%@", [TKUtils urlEncode:h ?: @""], [self formatPreference]]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         TKProfile *p = [TKProfile profileFromJSON:TKDict(json)];
         completion(p, p ? nil : TKMakeError(TKErrorBadResponse, L(@"This profile could not be loaded.")));
@@ -185,7 +192,7 @@
 {
     NSString *url = [self urlForPath:path query:[NSString stringWithFormat:@"%@&%@", query, [self formatPreference]]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         TKVideoPage *page = [TKVideoPage pageFromJSON:TKDict(json) cursorKey:cursorKey];
         completion(page, page ? nil : TKMakeError(TKErrorBadResponse, L(@"The server sent an invalid response.")));
@@ -214,7 +221,7 @@
 {
     NSString *url = [self urlForPath:@"/suggest" query:[NSString stringWithFormat:@"q=%@", [TKUtils urlEncode:text ?: @""]]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         NSMutableArray *words = [NSMutableArray array];
         for (id w in TKArr(TKDict(json)[@"items"])) if (TKStr(w).length) [words addObject:TKStr(w)];
         completion(error ? nil : words, error);
@@ -246,7 +253,7 @@
 {
     NSString *url = [self urlForPath:@"/live" query:[NSString stringWithFormat:@"room=%@", [TKUtils urlEncode:roomId ?: @""]]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         TKLiveRoom *r = [TKLiveRoom roomFromJSON:TKDict(json)];
         completion(r, r ? nil : TKMakeError(TKErrorBadResponse, L(@"This live stream could not be loaded.")));
@@ -257,7 +264,7 @@
 {
     NSString *url = [self urlForPath:@"/lives" query:@"count=30"];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { completion(nil, error); return; }
         NSMutableArray *rooms = [NSMutableArray array];
         for (id item in TKArr(TKDict(json)[@"items"])) if (TKStr(TKDict(item)[@"room"]).length) [rooms addObject:item];
@@ -269,15 +276,14 @@
 {
     NSString *url = [self urlForPath:@"/expand" query:[NSString stringWithFormat:@"u=%@", [TKUtils urlEncode:link ?: @""]]];
     if (!url) { completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:nil completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         completion(error ? nil : TKStr(TKDict(json)[@"url"]), error);
     }];
 }
 
 + (NSString *)proxyURLForPlayURL:(NSString *)playURL
 {
-    if (!playURL.length) return nil;
-    return [self urlForPath:@"/proxy" query:[NSString stringWithFormat:@"u=%@", [TKUtils urlEncode:playURL]]];
+    return nil; // On-device media proxy handles TLS; no remote helper is required.
 }
 
 + (NSDictionary *)sessionHeaders
@@ -291,51 +297,21 @@
 
 + (TKHTTPTask *)sessionCreateWithCookies:(NSString *)cookieData completion:(void (^)(BOOL, NSString *, NSDictionary *, NSError *))completion
 {
-    NSString *url = [self urlForPath:@"/session/create" query:nil];
-    if (!url) { if (completion) completion(NO, nil, nil, [self notConfigured]); return nil; }
-    NSDictionary *body = @{ @"cookies": cookieData ?: @"" };
-    return [TKHTTP postJSON:url headers:nil object:body retries:1 completion:^(id json, NSInteger status, NSError *error) {
-        if (error || status >= 400) {
-            if (completion) completion(NO, nil, nil, error ?: TKMakeError(status, L(@"Login failed.")));
-            return;
-        }
-        NSDictionary *dict = TKDict(json);
-        BOOL ok = TKBool(dict[@"ok"]);
-        NSString *token = TKStr(dict[@"token"]);
-        NSDictionary *user = TKDict(dict[@"user"]);
-        if (ok && token.length) {
-            if (completion) completion(YES, token, user, nil);
-        } else {
-            NSString *errMsg = TKStr(dict[@"error"]) ?: L(@"Invalid session credentials.");
-            if (completion) completion(NO, nil, nil, TKMakeError(TKErrorAPI, errMsg));
-        }
-    }];
+    return [TKDirectClient importCookies:cookieData completion:completion];
 }
 
 + (TKHTTPTask *)sessionValidateWithCompletion:(void (^)(BOOL, NSDictionary *, NSError *))completion
 {
-    NSString *url = [self urlForPath:@"/session/validate" query:nil];
-    if (!url) { if (completion) completion(NO, nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
-        if (error || status >= 400) {
-            if (completion) completion(NO, nil, error);
-            return;
-        }
-        NSDictionary *dict = TKDict(json);
-        BOOL valid = TKBool(dict[@"valid"]) || TKBool(dict[@"ok"]);
-        NSDictionary *user = TKDict(dict[@"user"]);
-        if (completion) completion(valid, user, nil);
-    }];
+    return [TKDirectClient validate:completion];
 }
 
 + (TKHTTPTask *)sessionDeleteWithCompletion:(void (^)(BOOL))completion
 {
-    NSString *url = [self urlForPath:@"/session/delete" query:nil];
-    if (!url) { if (completion) completion(NO); return nil; }
-    return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
-        if (completion) completion(!error && status < 400);
-    }];
+    [TKDirectClient signOut];
+    if (completion) completion(YES);
+    return nil;
 }
+
 
 + (TKHTTPTask *)myProfileWithCompletion:(void (^)(TKProfile *, NSError *))completion
 {
@@ -345,7 +321,7 @@
     }
     NSString *url = [self urlForPath:@"/me" query:nil];
     if (!url) { if (completion) completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSDictionary *userDict = TKDict(TKDict(json)[@"user"]);
         TKProfile *p = [TKProfile profileFromUserJSON:userDict];
@@ -357,7 +333,7 @@
 {
     NSString *url = [self urlForPath:@"/following" query:[NSString stringWithFormat:@"count=%ld&%@", (long)count, [self formatPreference]]];
     if (!url) { if (completion) completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSDictionary *batchHeaders = TKDict(TKDict(json)[@"headers"]);
         NSArray *items = TKArr(TKDict(json)[@"items"]);
@@ -370,7 +346,7 @@
 {
     NSString *url = [self urlForPath:@"/foryou" query:[NSString stringWithFormat:@"count=%ld&%@", (long)count, [self formatPreference]]];
     if (!url) { if (completion) completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSDictionary *batchHeaders = TKDict(TKDict(json)[@"headers"]);
         NSArray *items = TKArr(TKDict(json)[@"items"]);
@@ -383,7 +359,7 @@
 {
     NSString *url = [self urlForPath:@"/liked" query:[NSString stringWithFormat:@"count=%ld&%@", (long)count, [self formatPreference]]];
     if (!url) { if (completion) completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSDictionary *batchHeaders = TKDict(TKDict(json)[@"headers"]);
         NSArray *items = TKArr(TKDict(json)[@"items"]);
@@ -396,51 +372,27 @@
 {
     NSString *url = [self urlForPath:@"/notifications" query:[NSString stringWithFormat:@"count=%ld", (long)count]];
     if (!url) { if (completion) completion(nil, [self notConfigured]); return nil; }
-    return [TKHTTP getJSON:url headers:[self sessionHeaders] completion:^(id json, NSInteger status, NSError *error) {
+    return [self directGET:url completion:^(id json, NSInteger status, NSError *error) {
         if (error) { if (completion) completion(nil, error); return; }
         NSArray *items = TKArr(TKDict(json)[@"items"]);
         if (completion) completion(items, nil);
     }];
 }
 
+// TikTok's current web write protocol is not verified on these devices. Keep this explicit.
 + (TKHTTPTask *)diggVideoId:(NSString *)videoId type:(NSInteger)type completion:(void (^)(BOOL, NSError *))completion
 {
-    NSString *url = [self urlForPath:@"/digg" query:nil];
-    if (!url) { if (completion) completion(NO, [self notConfigured]); return nil; }
-    NSDictionary *body = @{ @"aweme_id": videoId ?: @"", @"type": @(type) };
-    return [TKHTTP postJSON:url headers:[self sessionHeaders] object:body retries:0 completion:^(id json, NSInteger status, NSError *error) {
-        BOOL ok = !error && status < 400 && TKBool(TKDict(json)[@"ok"]);
-        if (completion) completion(ok, error);
-    }];
+    if (completion) completion(NO, TKMakeError(TKErrorAPI, L(@"Account actions are not available in this version.")));
+    return nil;
 }
-
 + (TKHTTPTask *)followUserId:(NSString *)userId secUid:(NSString *)secUid type:(NSInteger)type completion:(void (^)(BOOL, NSError *))completion
 {
-    NSString *url = [self urlForPath:@"/follow" query:nil];
-    if (!url) { if (completion) completion(NO, [self notConfigured]); return nil; }
-    NSDictionary *body = @{ @"user_id": userId ?: @"", @"sec_user_id": secUid ?: @"", @"type": @(type) };
-    return [TKHTTP postJSON:url headers:[self sessionHeaders] object:body retries:0 completion:^(id json, NSInteger status, NSError *error) {
-        BOOL ok = !error && status < 400 && TKBool(TKDict(json)[@"ok"]);
-        if (completion) completion(ok, error);
-    }];
+    if (completion) completion(NO, TKMakeError(TKErrorAPI, L(@"Account actions are not available in this version.")));
+    return nil;
 }
-
 + (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text completion:(void (^)(BOOL, NSDictionary *, NSError *))completion
 {
-    NSString *url = [self urlForPath:@"/comment_post" query:nil];
-    if (!url) { if (completion) completion(NO, nil, [self notConfigured]); return nil; }
-    NSDictionary *body = @{ @"aweme_id": videoId ?: @"", @"text": text ?: @"" };
-    return [TKHTTP postJSON:url headers:[self sessionHeaders] object:body retries:0 completion:^(id json, NSInteger status, NSError *error) {
-        if (error || status >= 400) {
-            if (completion) completion(NO, nil, error ?: TKMakeError(status, L(@"Failed to post comment.")));
-            return;
-        }
-        NSDictionary *dict = TKDict(json);
-        BOOL ok = TKBool(dict[@"ok"]);
-        NSDictionary *raw = TKDict(dict[@"raw"]);
-        NSDictionary *comment = TKDict(raw[@"comment"]);
-        if (completion) completion(ok, comment, nil);
-    }];
+    if (completion) completion(NO, nil, TKMakeError(TKErrorAPI, L(@"Account actions are not available in this version.")));
+    return nil;
 }
-
 @end

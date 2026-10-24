@@ -41,11 +41,13 @@ static const NSInteger TKMaxRedirects = 5;
         TKHTTPRequest *request = weakRequest;
         if (task.isCancelled) return;
         NSInteger status = request.statusCode;
-        NSDictionary *responseHeaders = request.responseHeaders;
+        NSMutableDictionary *responseHeaders = [request.responseHeaders mutableCopy] ?: [NSMutableDictionary dictionary];
+        responseHeaders[@"tk-set-cookie"] = request.setCookieHeaders ?: @[];
+        responseHeaders[@"tk-final-url"] = url.absoluteString ?: @"";
         if (!error && status >= 300 && status < 400 && status != 304 && hops < TKMaxRedirects) {
             NSString *location = responseHeaders[@"location"];
             NSURL *next = location.length ? [[NSURL URLWithString:location relativeToURL:url] absoluteURL] : nil;
-            if (next.host.length) {
+            if (next.host.length && ([next.scheme.lowercaseString isEqualToString:@"https"] || ([url.scheme.lowercaseString isEqualToString:@"http"] && [next.scheme.lowercaseString isEqualToString:@"http"]))) {
                 BOOL safe = [method isEqualToString:@"GET"] || [method isEqualToString:@"HEAD"];
                 BOOL toGet = status == 303 || ((status == 301 || status == 302) && !safe);
                 NSDictionary *nextHeaders = headers;
@@ -54,7 +56,7 @@ static const NSInteger TKMaxRedirects = 5;
                     NSMutableDictionary *trimmed = [NSMutableDictionary dictionary];
                     for (NSString *key in headers) {
                         NSString *lower = [key lowercaseString];
-                        if ([lower isEqualToString:@"authorization"] || [lower isEqualToString:@"client-id"]) continue;
+                        if ([lower isEqualToString:@"authorization"] || [lower isEqualToString:@"client-id"] || [lower isEqualToString:@"cookie"] || [lower isEqualToString:@"x-tikie-session"]) continue;
                         trimmed[key] = headers[key];
                     }
                     nextHeaders = trimmed;
@@ -108,12 +110,12 @@ static const NSInteger TKMaxRedirects = 5;
 {
     NSDictionary *d = TKDict(json);
     if (!d) {
-        NSDictionary *first = TKDict([TKArr(json) firstObject]);
+        NSDictionary *first = TKDict(TKFirst(TKArr(json)));
         return TKStr(first[@"error"]) ?: TKStr(first[@"message"]);
     }
     NSString *message = TKStr(d[@"message"]);
     if (!message.length) message = TKStr(d[@"error_description"]);
-    if (!message.length) message = TKStr(TKDict([TKArr(d[@"errors"]) firstObject])[@"message"]);
+    if (!message.length) message = TKStr(TKDict(TKFirst(TKArr(d[@"errors"])))[@"message"]);
     if (!message.length && [d[@"error"] isKindOfClass:[NSString class]]) message = d[@"error"];
     return message.length ? message : nil;
 }
@@ -129,7 +131,7 @@ static const NSInteger TKMaxRedirects = 5;
             completion(json, status, TKMakeError(status, message));
             return;
         }
-        if (!json && body.length) {
+        if (!json) {
             completion(nil, status, TKMakeError(TKErrorBadResponse, L(@"Unexpected response format.")));
             return;
         }

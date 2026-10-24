@@ -5,4 +5,7 @@
 @interface TKKeychain : NSObject
 + (NSString *)stringForKey:(NSString *)key;
 + (void)setString:(NSString *)value forKey:(NSString *)key;
+// Account secrets never fall back to plaintext preferences.
++ (NSString *)secureStringForKey:(NSString *)key;
++ (BOOL)setSecureString:(NSString *)value forKey:(NSString *)key;
 @end

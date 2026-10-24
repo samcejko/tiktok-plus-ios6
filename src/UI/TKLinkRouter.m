@@ -88,7 +88,7 @@ static NSMutableArray *g_choices;
     NSRange at = [path rangeOfString:@"/@"];
     if (at.location == NSNotFound) return nil;
     NSString *rest = [path substringFromIndex:at.location + 2];
-    NSString *handle = [[rest componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/?#"]] firstObject];
+    NSString *handle = TKFirst([rest componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/?#"]]);
     return handle.length ? handle : nil;
 }
 

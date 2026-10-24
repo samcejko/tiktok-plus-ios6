@@ -13,7 +13,7 @@
 {
     if (!code.length || [code isEqualToString:@"un"]) return L(@"No caption");
     if ([code isEqualToString:@"*"]) return L(@"Other languages");
-    NSString *ui = [[NSLocale preferredLanguages] firstObject] ?: @"en";
+    NSString *ui = TKFirst([NSLocale preferredLanguages]) ?: @"en";
     NSString *name = [[[NSLocale alloc] initWithLocaleIdentifier:ui] displayNameForKey:NSLocaleLanguageCode value:code];
     if (!name.length) return code;
     return [[[name substringToIndex:1] uppercaseString] stringByAppendingString:[name substringFromIndex:1]];

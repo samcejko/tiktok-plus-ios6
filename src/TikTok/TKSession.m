@@ -1,5 +1,6 @@
 #import "TKSession.h"
 #import "TKKeychain.h"
+#import "TKDirectClient.h"
 #import "TKTikTok.h"
 #import "TKCommon.h"
 
@@ -8,6 +9,7 @@ static NSString * const TKSessionTokenKey = @"tikie.session";
 static NSString * const TKSessionUserKey = @"tikie.user";
 
 @interface TKSession ()
+@property (nonatomic) NSUInteger generation;
 @property (nonatomic, copy, readwrite) NSString *token;
 @property (nonatomic, strong, readwrite) NSDictionary *user;
 @end
@@ -28,15 +30,19 @@ static NSString * const TKSessionUserKey = @"tikie.user";
 {
     self = [super init];
     if (self) {
-        _token = [TKKeychain stringForKey:TKSessionTokenKey];
-        _user = [[NSUserDefaults standardUserDefaults] dictionaryForKey:TKSessionUserKey];
+        NSDictionary *saved = [TKDirectClient savedSession];
+        _token = TKStr(saved[@"token"]);
+        _user = TKDict(saved[@"user"]);
+        // Legacy helper tokens/public profiles do not prove a direct session.
+        [TKKeychain setString:nil forKey:TKSessionTokenKey];
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:TKSessionUserKey];
     }
     return self;
 }
 
 - (BOOL)signedIn
 {
-    return self.token.length > 0;
+    return self.token.length > 0 && self.handle.length > 0 && self.userId.length > 0;
 }
 
 - (NSString *)handle
@@ -68,7 +74,7 @@ static NSString * const TKSessionUserKey = @"tikie.user";
 + (NSString *)pendingCookieFilePath
 {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *docs = paths.firstObject;
+    NSString *docs = TKFirst(paths);
     NSString *p1 = [docs stringByAppendingPathComponent:@"ttsession.json"];
     if ([[NSFileManager defaultManager] fileExistsAtPath:p1]) return p1;
     NSString *p2 = [docs stringByAppendingPathComponent:@"ttcookies.json"];
@@ -79,7 +85,7 @@ static NSString * const TKSessionUserKey = @"tikie.user";
 + (BOOL)hasPendingCookieFile
 {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *docs = paths.firstObject;
+    NSString *docs = TKFirst(paths);
     if ([[NSFileManager defaultManager] fileExistsAtPath:[docs stringByAppendingPathComponent:@"ttsession.json"]]) return YES;
     if ([[NSFileManager defaultManager] fileExistsAtPath:[docs stringByAppendingPathComponent:@"ttcookies.json"]]) return YES;
     return NO;
@@ -100,7 +106,7 @@ static NSString * const TKSessionUserKey = @"tikie.user";
 + (void)deletePendingCookieFile
 {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *docs = paths.firstObject;
+    NSString *docs = TKFirst(paths);
     NSString *p1 = [docs stringByAppendingPathComponent:@"ttsession.json"];
     NSString *p2 = [docs stringByAppendingPathComponent:@"ttcookies.json"];
     [[NSFileManager defaultManager] removeItemAtPath:p1 error:nil];
@@ -119,19 +125,17 @@ static NSString * const TKSessionUserKey = @"tikie.user";
 
 - (void)importCookiesString:(NSString *)cookieString completion:(void(^)(BOOL success, NSString *errorMessage))completion
 {
+    NSUInteger generation = ++self.generation;
     [TKTikTok sessionCreateWithCookies:cookieString completion:^(BOOL success, NSString *token, NSDictionary *user, NSError *error) {
-        if (!success || !token.length) {
+        if (generation != self.generation) { if (completion) completion(NO, L(@"Session changed.")); return; }
+        if (success && ![TKDirectClient commitSession:token]) { if (completion) completion(NO, L(@"The session could not be saved securely. Check the app installation.")); return; }
+        if (!success || !token.length || !TKStr(user[@"userId"]).length || !TKStr(user[@"handle"]).length) {
             NSString *msg = error.localizedDescription ?: L(@"Invalid or expired session.");
             if (completion) completion(NO, msg);
             return;
         }
         self.token = token;
         self.user = user ?: @{};
-        [TKKeychain setString:token forKey:TKSessionTokenKey];
-        if (user) {
-            [[NSUserDefaults standardUserDefaults] setObject:user forKey:TKSessionUserKey];
-            [[NSUserDefaults standardUserDefaults] synchronize];
-        }
         [[self class] deletePendingCookieFile];
         [[NSNotificationCenter defaultCenter] postNotificationName:TKSessionDidChangeNotification object:self];
         if (completion) completion(YES, nil);
@@ -144,12 +148,21 @@ static NSString * const TKSessionUserKey = @"tikie.user";
         if (completion) completion(NO);
         return;
     }
+    NSString *validatedToken = [self.token copy];
     [TKTikTok sessionValidateWithCompletion:^(BOOL valid, NSDictionary *user, NSError *error) {
+        if (![self.token isEqualToString:validatedToken]) {
+            if (completion) completion(NO);
+            return;
+        }
+        if (error) {
+            // A temporary network failure does not invalidate saved credentials.
+            if (completion) completion(NO);
+            return;
+        }
         if (valid) {
             if (user.count) {
                 self.user = user;
-                [[NSUserDefaults standardUserDefaults] setObject:user forKey:TKSessionUserKey];
-                [[NSUserDefaults standardUserDefaults] synchronize];
+
             }
             if (completion) completion(YES);
         } else {
@@ -161,6 +174,7 @@ static NSString * const TKSessionUserKey = @"tikie.user";
 
 - (void)signOut
 {
+    ++self.generation;
     [TKTikTok sessionDeleteWithCompletion:nil];
     self.token = nil;
     self.user = nil;

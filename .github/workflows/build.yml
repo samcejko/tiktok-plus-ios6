@@ -124,7 +124,9 @@ jobs:
           ls -la Resources/licenses
 
       - name: Generate icons and launch images
-        run: python3 tools/gen_assets.py Resources
+        run: |
+          python3 tools/gen_assets.py Resources
+          python3 tools/check_icon_corners.py Resources
 
       - name: Patch the iOS 9.3 SDK (stub re-exported libraries missing from theos/sdks)
         run: |
@@ -179,7 +181,7 @@ jobs:
           for f in $(find src -name '*.m' | sort); do
             clang $FLAGS -fobjc-arc -x objective-c "$f" 2>&1 | grep -E 'error:' && status=1
           done
-          if [ $status -ne 0 ]; then echo "SYNTAX CHECK FOUND ERRORS (see above)"; else echo "syntax check clean"; fi
+          if [ $status -ne 0 ]; then echo "SYNTAX CHECK FOUND ERRORS (see above)"; exit 1; else echo "syntax check clean"; fi
 
       - name: Build (${{ matrix.name }})
         run: |
@@ -195,6 +197,22 @@ jobs:
           echo "== staged app ($APP) =="
           ls -la "$APP"
           lipo -info "$APP/TikiePlus" 2>/dev/null || true
+
+      - name: Build native parser fixture tests
+        run: |
+          export PATH="$THEOS/toolchain/linux/iphone/bin:$THEOS/bin:$PATH"
+          if [ "${{ matrix.scheme }}" = rootless ]; then
+            TARGET=arm64-apple-ios14.0; SDK="$THEOS/sdks/iPhoneOS16.5.sdk"
+          else
+            TARGET=armv7-apple-ios6.0; SDK="$THEOS/sdks/iPhoneOS9.3.sdk"
+          fi
+          mkdir -p packages
+          clang -target "$TARGET" -isysroot "$SDK" -fobjc-arc -fblocks -Os \
+            -Isrc -Isrc/TikTok -framework Foundation -framework UIKit \
+            tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKWebSignature.m src/TKCommon.m \
+            -o "packages/direct-parser-tests${{ matrix.suffix }}"
+          install_name_tool -change /System/Library/Frameworks/CFNetwork.framework/CFNetwork /System/Library/Frameworks/Foundation.framework/Foundation "packages/direct-parser-tests${{ matrix.suffix }}" || true
+          ldid -S "packages/direct-parser-tests${{ matrix.suffix }}"
 
       - name: Make IPA
         run: |
@@ -219,6 +237,7 @@ jobs:
           path: |
             packages/*.ipa
             packages/*.deb
+            packages/direct-parser-tests*
           if-no-files-found: error
 
       - name: Upload build log

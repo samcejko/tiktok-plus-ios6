@@ -27,6 +27,27 @@ static NSString * const TKKeychainService = @"com.samcejko.tikieplus";
     return fallback;
 }
 
+ + (NSString *)secureStringForKey:(NSString *)key
+{
+    NSMutableDictionary *q = [self queryForKey:key];
+    q[(__bridge id)kSecReturnData] = (__bridge id)kCFBooleanTrue;
+    q[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitOne;
+    CFTypeRef result = NULL;
+    if (SecItemCopyMatching((__bridge CFDictionaryRef)q, &result) != errSecSuccess || !result) return nil;
+    return [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
+}
++ (BOOL)setSecureString:(NSString *)value forKey:(NSString *)key
+{
+    NSMutableDictionary *q = [self queryForKey:key];
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:[@"kc." stringByAppendingString:key]];
+    if (!value.length) { OSStatus s = SecItemDelete((__bridge CFDictionaryRef)q); return s == errSecSuccess || s == errSecItemNotFound; }
+    NSDictionary *attrs = @{(__bridge id)kSecValueData:[value dataUsingEncoding:NSUTF8StringEncoding],
+        (__bridge id)kSecAttrAccessible:(__bridge id)kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly};
+    OSStatus s = SecItemUpdate((__bridge CFDictionaryRef)q, (__bridge CFDictionaryRef)attrs);
+    if (s == errSecItemNotFound) { [q addEntriesFromDictionary:attrs]; s = SecItemAdd((__bridge CFDictionaryRef)q, NULL); }
+    return s == errSecSuccess;
+}
+
 + (void)setString:(NSString *)value forKey:(NSString *)key
 {
     NSMutableDictionary *q = [self queryForKey:key];

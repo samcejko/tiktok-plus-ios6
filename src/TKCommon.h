@@ -50,3 +50,5 @@ BOOL TKBool(id value);
 
 // "2026-10-02T17:31:00Z" and "2026-10-02T17:31:05.042684Z"
 NSDate *TKDateFromISO(NSString *string);
+
+static inline id TKFirst(NSArray *array) { return array.count ? [array objectAtIndex:0] : nil; }

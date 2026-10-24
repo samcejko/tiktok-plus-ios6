@@ -281,3 +281,21 @@
 "Sign-in successful" = "Přihlášení proběhlo úspěšně";
 "Someone" = "Někdo";
 "ttsession.json detected in Documents. Ready to import." = "V Dokumentech byl nalezen ttsession.json. Připraveno k importu.";
+
+// Direct connection and verified local sessions
+"Account actions are not available in this version." = "Akce na účtu nejsou v této verzi dostupné.";
+"Account features depend on what TikTok makes available. Sending likes, follows and comments is not supported in this version." = "Funkce účtu závisejí na dostupnosti u TikToku. Odesílání lajků, sledování a komentářů tato verze nepodporuje.";
+"Connection" = "Připojení";
+"Direct connection to TikTok" = "Přímé připojení k TikToku";
+"Explore" = "Objevovat";
+"Feed: Explore" = "Feed: Objevovat";
+"Could not load any videos. Check your connection or try another topic." = "Nepodařilo se načíst žádná videa. Zkontroluj připojení nebo zkus jiné téma.";
+"Import a signed-in TikTok browser session. TikTak+ verifies the account directly with TikTok. Some account features may be restricted by TikTok." = "Importuj přihlášení k TikToku z prohlížeče. TikTak+ ověří účet přímo u TikToku. Některé funkce účtu může TikTok omezovat.";
+"Invalid or expired TikTok cookies. Export cookies for tiktok.com while signed in." = "Neplatné nebo prošlé cookies TikToku. Exportuj cookies pro tiktok.com z přihlášeného prohlížeče.";
+"Session changed." = "Přihlášení se mezitím změnilo.";
+"The session could not be saved securely. Check the app installation." = "Přihlášení se nepodařilo bezpečně uložit. Zkontroluj instalaci aplikace.";
+"TikTak+ connects directly to TikTok. No helper server is required. Session cookies stay on this device and are sent only to TikTok." = "TikTak+ se připojuje přímo k TikToku. Nepotřebuje pomocný server. Přihlašovací cookies zůstávají v tomto zařízení a odesílají se pouze TikToku.";
+"TikTok could not verify this session. Export fresh cookies while signed in." = "TikTok nepotvrdil toto přihlášení. Exportuj nové cookies z přihlášeného prohlížeče.";
+"TikTok did not provide this content. Try again later or open the link in a browser." = "TikTok tento obsah neposkytl. Zkus to později nebo otevři odkaz v prohlížeči.";
+"TikTok did not provide this profile’s posts. Pull down to try again." = "TikTok neposkytl příspěvky tohoto profilu. Tažením dolů to zkus znovu.";
+"How to sign in:\n1. Log into tiktok.com in your PC or mobile browser.\n2. Export your cookies (e.g. using Cookie-Editor or browser tools) to a ttsession.json file.\n3. Put ttsession.json into TikTak's Documents folder via iTunes File Sharing or Filza/iFile.\n4. Tap 'Import Session File' above. TikTak+ verifies and stores it securely on this device, then deletes the imported file. No helper is used." = "Jak se přihlásit:\n1. Přihlas se na tiktok.com v prohlížeči na počítači nebo telefonu.\n2. Exportuj cookies (např. pomocí Cookie-Editoru) do souboru ttsession.json.\n3. Přenes ttsession.json do složky Documents aplikace přes iTunes nebo Filzu/iFile.\n4. Klepni na Importovat přihlášení. TikTak+ přihlášení ověří a bezpečně uloží v tomto zařízení, potom importovaný soubor smaže. Pomocný server nepoužívá.";

@@ -63,7 +63,7 @@ static const NSUInteger TKMaxSeen = 4000;
 
 + (BOOL)serverConfigured { return [self serverBaseURL].length > 0; }
 
-+ (BOOL)streamThroughServer { return [DEF boolForKey:@"streamThroughServer"]; }
++ (BOOL)streamThroughServer { return NO; }
 + (void)setStreamThroughServer:(BOOL)value { [DEF setBool:value forKey:@"streamThroughServer"]; [self notify]; }
 
 #pragma mark - Playback / appearance / network
@@ -180,7 +180,7 @@ static const NSUInteger TKMaxSeen = 4000;
     [DEF setObject:seen forKey:@"seenVideos"];
 }
 
-+ (BOOL)allowAccountWrites { return [DEF boolForKey:@"allowAccountWrites"]; }
++ (BOOL)allowAccountWrites { return NO; }
 
 + (void)setAllowAccountWrites:(BOOL)value
 {

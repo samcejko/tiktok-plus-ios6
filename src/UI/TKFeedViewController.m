@@ -55,7 +55,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 @interface TKFeedViewController () <UIScrollViewDelegate, TKVideoCellDelegate, UIActionSheetDelegate, UIAlertViewDelegate>
 @property (nonatomic, strong) UIScrollView *scroll;
 @property (nonatomic, strong) id<TKFeedSource> feed;      // live mode
-@property (nonatomic) BOOL followingFeedSelected;
+@property (nonatomic) NSInteger feedMode; // 0 Explore, 1 account For You, 2 Following
 @property (nonatomic, strong) NSArray *menuActions;
 @property (nonatomic, strong) NSArray *fixedVideos;      // fixed mode (saved / single link)
 @property (nonatomic, strong) NSMutableDictionary *cells;   // index -> TKVideoCell
@@ -94,11 +94,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 - (instancetype)init
 {
     if ((self = [super initWithNibName:nil bundle:nil])) {
-        if ([TKSession sharedSession].signedIn) {
-            _feed = [[TKPersonalFeed alloc] initWithFollowingMode:NO];
-        } else {
-            _feed = [[TKFeed alloc] init];
-        }
+        _feed = [[TKFeed alloc] init];
         _cells = [NSMutableDictionary dictionary];
         _muted = [TKSettings startMuted];
     }
@@ -161,7 +157,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     self.titleLabel.font = [UIFont boldSystemFontOfSize:15];
     self.titleLabel.textAlignment = NSTextAlignmentCenter;
     self.titleLabel.backgroundColor = [UIColor clearColor];
-    self.titleLabel.text = self.title ?: L(@"For You");
+    self.titleLabel.text = self.title ?: [self currentFeedTitle];
     self.titleLabel.layer.shadowOpacity = 0.7;
     self.titleLabel.layer.shadowRadius = 2;
     [self.view addSubview:self.titleLabel];
@@ -200,16 +196,18 @@ static const NSInteger TKAutoAdvancesMax = 5;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(sessionChanged) name:TKSessionDidChangeNotification object:nil];
 }
 
+- (NSString *)currentFeedTitle
+{
+    return self.feedMode == 2 ? L(@"Following") : (self.feedMode == 1 ? L(@"For You") : L(@"Explore"));
+}
+
 - (void)sessionChanged
 {
     if (self.fixedMode) return;
-    if ([TKSession sharedSession].signedIn) {
-        self.feed = [[TKPersonalFeed alloc] initWithFollowingMode:self.followingFeedSelected];
-    } else {
-        self.followingFeedSelected = NO;
-        self.feed = [[TKFeed alloc] init];
-    }
-    self.titleLabel.text = self.title ?: (self.followingFeedSelected ? L(@"Following") : L(@"For You"));
+    [self removeAllCells];
+    self.feedMode = 0;
+    self.feed = [[TKFeed alloc] init];
+    self.titleLabel.text = self.title ?: [self currentFeedTitle];
     if (self.appeared) [self loadFeed];
 }
 
@@ -333,7 +331,9 @@ static const NSInteger TKAutoAdvancesMax = 5;
     }
     [self showMessage:nil button:nil action:nil];
     [self.spinner startAnimating];
-    [self.feed reloadWithCompletion:^(NSError *error) {
+    id<TKFeedSource> requestedFeed = self.feed;
+    [requestedFeed reloadWithCompletion:^(NSError *error) {
+        if (self.feed != requestedFeed) return;
         [self.spinner stopAnimating];
         if (error) {
             if ([self count] == 0) [self showMessage:error.localizedDescription button:L(@"Try again") action:@selector(loadFeed)];
@@ -430,14 +430,16 @@ static const NSInteger TKAutoAdvancesMax = 5;
         else [cell preparePlayback];
         return;
     }
+    id expectedFeed = self.feed;
     [TKTikTok resolveVideo:video completion:^(TKVideo *resolved, NSError *error) {
+        if (expectedFeed != self.feed || [self videoAt:index] != video || [self cellAt:index] != cell) return;
         if (error || !resolved.playable) {
             if (index == self.currentIndex) [cell showError:error.localizedDescription ?: L(@"This video could not be loaded.")];
             return;
         }
         TKVideoCell *stillThere = [self cellAt:index];
         if (!stillThere) return;
-        if (index == self.currentIndex || play) [stillThere startPlaybackMuted:self.muted];
+        if (index == self.currentIndex && self.visible) [stillThere startPlaybackMuted:self.muted];
         else [stillThere preparePlayback];
     }];
 }
@@ -775,11 +777,8 @@ static const NSInteger TKAutoAdvancesMax = 5;
     [actions addObject:@(TKMenuMute)];
 
     if ([TKSession sharedSession].signedIn) {
-        [sheet addButtonWithTitle:self.followingFeedSelected ? L(@"Feed: For You") : L(@"Feed: Following")];
+        [sheet addButtonWithTitle:self.feedMode == 0 ? L(@"Feed: For You") : (self.feedMode == 1 ? L(@"Feed: Following") : L(@"Feed: Explore"))];
         [actions addObject:@(TKMenuSwitchFeed)];
-
-        [sheet addButtonWithTitle:L(@"Notifications")];
-        [actions addObject:@(TKMenuNotifications)];
 
         [sheet addButtonWithTitle:L(@"Liked videos")];
         [actions addObject:@(TKMenuLiked)];
@@ -821,9 +820,10 @@ static const NSInteger TKAutoAdvancesMax = 5;
         switch (action) {
             case TKMenuMute: [self toggleMute]; break;
             case TKMenuSwitchFeed: {
-                self.followingFeedSelected = !self.followingFeedSelected;
-                self.titleLabel.text = self.title ?: (self.followingFeedSelected ? L(@"Following") : L(@"For You"));
-                self.feed = [[TKPersonalFeed alloc] initWithFollowingMode:self.followingFeedSelected];
+                self.feedMode = (self.feedMode + 1) % 3;
+                [self removeAllCells];
+                self.titleLabel.text = self.title ?: [self currentFeedTitle];
+                self.feed = self.feedMode == 0 ? (id)[[TKFeed alloc] init] : [[TKPersonalFeed alloc] initWithFollowingMode:self.feedMode == 2];
                 [self loadFeed];
                 break;
             }

@@ -355,7 +355,7 @@ static const NSUInteger TKSearchListMax = 40;     // rows per tab
     cell.selectionStyle = UITableViewCellSelectionStyleGray;
     TKImageView *pic = (TKImageView *)[cell.contentView viewWithTag:77];
     if ([kind isEqualToString:@"suggest"] || [kind isEqualToString:@"history"]) {
-        cell.textLabel.text = [([kind isEqualToString:@"history"] ? @"🕘  " : @"🔍  ") stringByAppendingString:row[@"text"]];
+        cell.textLabel.text = row[@"text"];
     } else if ([kind isEqualToString:@"clear"]) {
         cell.textLabel.text = L(@"Clear search history");
         cell.textLabel.font = [UIFont systemFontOfSize:15];

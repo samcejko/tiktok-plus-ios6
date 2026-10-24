@@ -160,7 +160,7 @@ static UILabel *TKCommentSizingLabel(void)
     [[TKTheme shared] applyToTableView:self.tableView];
     if (!self.panel && !self.inSheet) {
         self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
-        if ([TKSession sharedSession].signedIn) {
+        if ([TKSession sharedSession].signedIn && [TKSettings allowAccountWrites]) {
             self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:L(@"Comment") style:UIBarButtonItemStylePlain target:self action:@selector(postCommentPrompt)];
         }
     }
@@ -204,7 +204,7 @@ static UILabel *TKCommentSizingLabel(void)
 - (void)rebuildRows
 {
     NSMutableArray *rows = [NSMutableArray array];
-    if ([TKSession sharedSession].signedIn && self.video.videoId.length) {
+    if ([TKSession sharedSession].signedIn && [TKSettings allowAccountWrites] && self.video.videoId.length) {
         [rows addObject:@{ @"action": @"comment" }];
     }
     for (TKComment *c in self.comments) {

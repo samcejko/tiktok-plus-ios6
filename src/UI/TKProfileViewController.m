@@ -134,11 +134,11 @@ static const CGFloat TKStatsHeight = 52;
     for (NSUInteger i = 0; i < 3; i++) [self.valueLabels[i] setText:[TKUtils formatBigCount:[counts[i] longLongValue]]];
     self.liveButton.hidden = !p.liveRoom.length;
     BOOL isMe = [TKSession sharedSession].signedIn && [p.handle isEqualToString:[TKSession sharedSession].handle];
-    self.followButton.hidden = ![TKSession sharedSession].signedIn || isMe;
+    self.followButton.hidden = ![TKSettings allowAccountWrites] || ![TKSession sharedSession].signedIn || isMe;
     self.bioLabel.text = p.bio.length ? [TKUtils displayText:p.bio] : @"";
     NSString *link = [p.link stringByReplacingOccurrencesOfString:@"https://" withString:@""];
     link = [link stringByReplacingOccurrencesOfString:@"http://" withString:@""];
-    [self.linkButton setTitle:link.length ? [@"🔗 " stringByAppendingString:link] : nil forState:UIControlStateNormal];
+    [self.linkButton setTitle:link.length ? link : nil forState:UIControlStateNormal];
     self.linkButton.hidden = !link.length;
     [self setNeedsLayout];
 }
@@ -286,7 +286,7 @@ static const CGFloat TKStatsHeight = 52;
 
 - (CGFloat)headerHeightForWidth:(CGFloat)width { return [(TKProfileHeaderView *)[self headerView] layoutForWidth:width apply:NO]; }
 
-- (NSString *)emptyMessage { return self.profile.isPrivate ? L(@"This account is private.") : L(@"No public posts to show."); }
+- (NSString *)emptyMessage { return self.profile.isPrivate ? L(@"This account is private.") : (self.profile.postsUnavailable ? L(@"TikTok did not provide this profile’s posts. Pull down to try again.") : L(@"No public posts to show.")); }
 - (NSString *)feedTitle { return [@"@" stringByAppendingString:self.profile.handle.length ? self.profile.handle : self.handle]; }
 
 - (void)openLive

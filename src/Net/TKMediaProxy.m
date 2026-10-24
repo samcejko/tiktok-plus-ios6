@@ -446,7 +446,7 @@ static BOOL TKProxyPortAnswers(uint16_t port)
         if (end.location == NSNotFound) { close(fd); return; }
         NSString *head = [[NSString alloc] initWithData:[buffer subdataWithRange:NSMakeRange(0, end.location)] encoding:NSISOLatin1StringEncoding] ?: @"";
         NSArray *lines = [head componentsSeparatedByString:@"\r\n"];
-        NSArray *requestLine = [lines.firstObject componentsSeparatedByString:@" "];
+        NSArray *requestLine = [TKFirst(lines) componentsSeparatedByString:@" "];
         NSString *method = requestLine.count >= 2 ? [requestLine[0] uppercaseString] : nil;
         NSMutableDictionary *headers = [NSMutableDictionary dictionary];
         for (NSUInteger i = 1; i < lines.count; i++) {

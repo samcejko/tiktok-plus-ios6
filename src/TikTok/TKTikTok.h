@@ -3,7 +3,7 @@
 
 @class TKHTTPTask;
 
-// Talks to the Pi helper (the only server this app needs). All completions run on the main thread.
+// Connects directly to TikTok from the device. All completions run on the main thread.
 @interface TKTikTok : NSObject
 
 + (BOOL)configured;                          // a server base URL is set

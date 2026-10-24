@@ -464,7 +464,7 @@ static void TKAppendTimestamp(NSMutableData *pes, uint8_t prefix, int64_t ts)
     double longest = TKLiveTargetSeconds;
     for (TKLiveSegment *s in segments) longest = MAX(longest, s.duration);
     NSMutableString *m = [NSMutableString stringWithFormat:@"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:%d\n#EXT-X-MEDIA-SEQUENCE:%lu\n",
-                          (int)ceil(longest), (unsigned long)[(TKLiveSegment *)segments.firstObject sequence]];
+                          (int)ceil(longest), (unsigned long)[(TKLiveSegment *)TKFirst(segments) sequence]];
     for (TKLiveSegment *s in segments) [m appendFormat:@"#EXTINF:%.3f,\n%lu.ts\n", s.duration, (unsigned long)s.sequence];
     if (self.stopped) [m appendString:@"#EXT-X-ENDLIST\n"];
     return m;
@@ -489,7 +489,7 @@ static void TKAppendTimestamp(NSMutableData *pes, uint8_t prefix, int64_t ts)
         self.lastAsked = [NSDate timeIntervalSinceReferenceDate];
         NSArray *segments = [self segmentsNow];
         for (TKLiveSegment *s in segments) if (s.sequence == sequence) return s.data;
-        if (segments.count && sequence < [(TKLiveSegment *)segments.firstObject sequence]) return nil;   // gone already
+        if (segments.count && sequence < [(TKLiveSegment *)TKFirst(segments) sequence]) return nil;   // gone already
         if (self.stopped || [NSDate timeIntervalSinceReferenceDate] > until) return nil;
         usleep(100000);
     }

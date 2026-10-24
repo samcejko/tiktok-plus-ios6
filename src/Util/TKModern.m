@@ -7,6 +7,8 @@
 #import "TKModern.h"
 #import <objc/runtime.h>
 
+static inline id TKFirst(NSArray *array) { return array.count ? [array objectAtIndex:0] : nil; }
+
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -19,7 +21,7 @@ static NSInteger TKMajorVersion(void)
     static NSInteger major = 0;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        major = [[[[UIDevice currentDevice] systemVersion] componentsSeparatedByString:@"."][0] integerValue];
+        major = [[[UIDevice currentDevice] systemVersion] integerValue];
         if (major < 1) major = 6;
     });
     return major;
@@ -43,7 +45,7 @@ UIEdgeInsets TKScreenSafeAreaInsets(void)
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
     if (TKAtLeast(11)) {
         UIApplication *app = [UIApplication sharedApplication];
-        UIWindow *window = app.keyWindow ?: app.windows.firstObject;
+        UIWindow *window = app.keyWindow ?: TKFirst(app.windows);
         if (window) return window.safeAreaInsets;
     }
 #endif
@@ -516,7 +518,7 @@ UITextField *TKModernSearchBarTextField(UISearchBar *bar)
 #endif
     NSMutableArray *queue = [NSMutableArray arrayWithObject:bar];
     while (queue.count) {
-        UIView *v = queue.firstObject;
+        UIView *v = TKFirst(queue);
         [queue removeObjectAtIndex:0];
         if ([v isKindOfClass:[UITextField class]]) return (UITextField *)v;
         [queue addObjectsFromArray:v.subviews];
@@ -695,8 +697,8 @@ static id (*TKOriginalTableInit)(id, SEL, CGRect, UITableViewStyle);
 static BOOL TKIsAppController(UIViewController *vc)
 {
     UIViewController *probe = vc;
-    if ([vc isKindOfClass:[UINavigationController class]]) probe = ((UINavigationController *)vc).viewControllers.firstObject ?: vc;
-    else if ([vc isKindOfClass:[UITabBarController class]]) probe = ((UITabBarController *)vc).viewControllers.firstObject ?: vc;
+    if ([vc isKindOfClass:[UINavigationController class]]) probe = TKFirst(((UINavigationController *)vc).viewControllers) ?: vc;
+    else if ([vc isKindOfClass:[UITabBarController class]]) probe = TKFirst(((UITabBarController *)vc).viewControllers) ?: vc;
     // (the bundle of a class from the executable is the main bundle; a system picker or sheet lives under /System)
     NSBundle *bundle = [NSBundle bundleForClass:[probe class]];
     if (bundle == [NSBundle mainBundle]) return YES;

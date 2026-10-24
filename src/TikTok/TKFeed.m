@@ -159,7 +159,7 @@ static double TKFeedRandom(void) { return ((double)arc4random() + 0.5) / 4294967
     [self.pool removeAllObjects];      // (knownIds stays: what this session showed does not come back)
     [self refill:^(BOOL any) {
         if (!self.pool.count) {
-            if (completion) completion(TKMakeError(TKErrorNetwork, L(@"Could not load any videos. Check the server.")));
+            if (completion) completion(TKMakeError(TKErrorNetwork, L(@"Could not load any videos. Check your connection or try another topic.")));
             return;
         }
         [self->_videos removeAllObjects];

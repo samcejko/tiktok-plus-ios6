@@ -71,7 +71,7 @@ static NSString * const TKLiveCellId = @"live";
     [[TKTheme shared] applyToTableView:self.tableView];
     self.tableView.rowHeight = 64;
     [self.tableView registerClass:[TKLiveRoomCell class] forCellReuseIdentifier:TKLiveCellId];
-    if (self.navigationController.viewControllers.firstObject == self)
+    if (TKFirst(self.navigationController.viewControllers) == self)
         self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
     self.refreshControl = [[UIRefreshControl alloc] init];
     [self.refreshControl addTarget:self action:@selector(load) forControlEvents:UIControlEventValueChanged];

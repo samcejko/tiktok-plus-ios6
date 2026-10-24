@@ -92,7 +92,7 @@ static BOOL TKGenericTag(NSString *tag)
         // the device's languages get a head start until the viewer's own behaviour says otherwise
         NSMutableSet *langs = [NSMutableSet setWithObject:@"en"];
         for (NSString *l in [NSLocale preferredLanguages]) {
-            NSString *code = [[[l componentsSeparatedByString:@"-"] firstObject] lowercaseString];
+            NSString *code = [TKFirst([l componentsSeparatedByString:@"-"]) lowercaseString];
             if (code.length) [langs addObject:code];
             if (langs.count >= 4) break;
         }

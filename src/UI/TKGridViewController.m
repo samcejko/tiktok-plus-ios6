@@ -358,7 +358,7 @@ static const NSTimeInterval TKGridRetryAfter = 5;   // a failed "more" is not as
     TKGridCell *cell = [cv dequeueReusableCellWithReuseIdentifier:TKGridCellId forIndexPath:ip];
     TKVideo *v = self.videos[(NSUInteger)ip.item];
     [cell.cover setImageURL:v.coverURL placeholder:nil];
-    cell.badge.text = v.isPhoto ? L(@"Photos") : (v.plays ? [@"▶ " stringByAppendingString:[TKUtils formatCount:v.plays]] : @"");
+    cell.badge.text = v.isPhoto ? L(@"Photos") : (v.plays ? [TKUtils formatCount:v.plays] : @"");
     [cell setNeedsLayout];
     return cell;
 }

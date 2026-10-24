@@ -941,6 +941,10 @@ def _parse_cookie_input(raw):
     jar = http.cookiejar.CookieJar()
     if isinstance(raw, (bytes, bytearray)):
         raw = raw.decode("utf-8", "replace")
+    if isinstance(raw, (dict, list)):
+        raw = json.dumps(raw)
+    if raw is not None and not isinstance(raw, str):
+        raise ValueError("Cookies must be text, an object, or a list")
     raw = (raw or "").strip()
     if not raw:
         return jar
@@ -961,7 +965,7 @@ def _parse_cookie_input(raw):
         return jar
     elif isinstance(parsed_json, dict):
         if "cookies" in parsed_json:
-            return _parse_cookie_input(json.dumps(parsed_json["cookies"]))
+            return _parse_cookie_input(parsed_json["cookies"])
         for k, v in parsed_json.items():
             if isinstance(v, (str, int, float, bool)):
                 jar.set_cookie(_make_cookie(str(k), str(v)))
@@ -971,6 +975,8 @@ def _parse_cookie_input(raw):
 
     for line in raw.splitlines():
         line = line.strip()
+        if line.startswith("#HttpOnly_"):
+            line = line[len("#HttpOnly_"):]
         if not line or line.startswith("#"):
             continue
         parts = line.split("\t")
@@ -1054,40 +1060,7 @@ def _fetch_session_user_info(jar):
     except Exception as e:
         sys.stderr.write("passport account probe: %s\n" % e)
 
-    # 2. Home page universal rehydration
-    try:
-        req = urllib.request.Request("https://www.tiktok.com/",
-                                     headers={"User-Agent": UA, "Referer": "https://www.tiktok.com/", "Accept-Language": "en-US,en;q=0.9"})
-        with opener.open(req, timeout=15) as r:
-            html = r.read().decode("utf-8", "replace")
-        m = re.search(r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', html)
-        if m:
-            data = json.loads(m.group(1))
-            scope = data.get("__DEFAULT_SCOPE__") or {}
-            user_detail = scope.get("webapp.user-detail") or {}
-            user_info = user_detail.get("userInfo") or {}
-            user = user_info.get("user") or {}
-            if user.get("uniqueId"):
-                return {
-                    "handle": norm_user(user.get("uniqueId")),
-                    "name": user.get("nickname") or user.get("uniqueId"),
-                    "avatar": _jpeg([user.get("avatarLarger"), user.get("avatarMedium"), user.get("avatarThumb")]),
-                    "userId": str(user.get("id") or ""),
-                    "secUid": user.get("secUid") or ""
-                }
-    except Exception as e:
-        sys.stderr.write("hydration probe: %s\n" % e)
-
-    # 3. Fallback: check if sessionid exists
-    has_sessionid = any(c.name.lower() in ("sessionid", "sessionid_ss", "sid_tt") and c.value for c in jar)
-    if has_sessionid:
-        return {
-            "handle": "my_account",
-            "name": "TikTok User",
-            "avatar": "",
-            "userId": "",
-            "secUid": ""
-        }
+    # A cookie name alone does not prove that the session is valid.
     return None
 
 
@@ -1143,8 +1116,6 @@ def logged_in_following(token, count=20, maxh=1280):
     for it in (data.get("itemList") or data.get("items") or data.get("data") or []):
         if isinstance(it, dict):
             raw.append(it.get("item") or it)
-    if not raw:
-        return discover(100, count, maxh)
     return _ready_items(raw, maxh, headers), headers
 
 
@@ -1159,8 +1130,6 @@ def logged_in_foryou(token, count=20, maxh=1280):
     for it in (data.get("itemList") or data.get("items") or data.get("data") or []):
         if isinstance(it, dict):
             raw.append(it.get("item") or it)
-    if not raw:
-        return discover(100, count, maxh)
     return _ready_items(raw, maxh, headers), headers
 
 
@@ -1215,7 +1184,7 @@ def logged_in_digg(token, aweme_id, digg_type=1):
     jar = _list_to_jar(sess["cookies"])
     data, _ = _web_api("/api/commit/item/digg/", {"aweme_id": str(aweme_id), "type": str(digg_type)},
                        "item", "https://www.tiktok.com/", sign=True, session_jar=jar)
-    return {"ok": data.get("status_code") == 0 or "status_code" not in data, "raw": data}
+    return {"ok": data.get("status_code") == 0 and data.get("statusCode", 0) == 0, "raw": data}
 
 
 def logged_in_follow(token, user_id="", sec_user_id="", follow_type=1):
@@ -1230,7 +1199,7 @@ def logged_in_follow(token, user_id="", sec_user_id="", follow_type=1):
         params["sec_user_id"] = str(sec_user_id)
     data, _ = _web_api("/api/commit/follow/user/", params,
                        "profile", "https://www.tiktok.com/", sign=True, session_jar=jar)
-    return {"ok": data.get("status_code") == 0 or "status_code" not in data, "raw": data}
+    return {"ok": data.get("status_code") == 0 and data.get("statusCode", 0) == 0, "raw": data}
 
 
 def logged_in_comment_post(token, aweme_id, text):
@@ -1526,7 +1495,12 @@ class Handler(BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(parsed.query)
         if not self._authorized(q):
             return self._send_json({"error": "unauthorized"}, 401)
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            return self._send_json({"error": "invalid content length"}, 400)
+        if length < 0 or length > 1024 * 1024:
+            return self._send_json({"error": "request body too large"}, 413)
         raw_body = self.rfile.read(length) if length > 0 else b""
         body_str = raw_body.decode("utf-8", "replace")
         body_json = {}
@@ -1535,6 +1509,8 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             body_json = {}
 
+        if not isinstance(body_json, dict):
+            return self._send_json({"error": "expected a JSON object"}, 400)
         try:
             if path == "/session/create":
                 cookie_data = body_json.get("cookies", body_str)

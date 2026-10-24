@@ -79,6 +79,7 @@
 @property (nonatomic, copy) NSString *userId;
 @property (nonatomic, copy) NSArray *videos;         // TKVideo, the newest posts (ready to play, or resolved when played)
 @property (nonatomic) long long postsCursor;          // where the next page of posts starts (0 = none)
+@property (nonatomic) BOOL postsUnavailable;
 @property (nonatomic) BOOL hasMorePosts;
 + (instancetype)profileFromJSON:(NSDictionary *)json;
 + (instancetype)profileFromUserJSON:(NSDictionary *)user;   // just who they are (a search result)

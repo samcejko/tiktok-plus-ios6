@@ -29,9 +29,6 @@
 
 - (NSArray *)videos
 {
-    if (self.mutableVideos.count == 0 && self.fallbackFeed.videos.count > 0) {
-        return self.fallbackFeed.videos;
-    }
     return [self.mutableVideos copy];
 }
 
@@ -45,10 +42,8 @@
             [self.mutableVideos addObjectsFromArray:videos];
             if (completion) completion(nil);
         } else {
-            // Fallback to local taste feed if server returned no personal items
-            [self.fallbackFeed reloadWithCompletion:^(NSError *fallbackError) {
-                if (completion) completion(fallbackError ?: error);
-            }];
+            [self.mutableVideos removeAllObjects];
+            if (completion) completion(error);
         }
     };
 
@@ -61,11 +56,6 @@
 
 - (void)ensureAhead:(NSInteger)index by:(NSInteger)count completion:(void (^)(BOOL added))completion
 {
-    if (self.mutableVideos.count == 0 && self.fallbackFeed.videos.count > 0) {
-        [self.fallbackFeed ensureAhead:index by:count completion:completion];
-        return;
-    }
-
     if (self.loading || (index + count < (NSInteger)self.mutableVideos.count)) {
         if (completion) completion(NO);
         return;

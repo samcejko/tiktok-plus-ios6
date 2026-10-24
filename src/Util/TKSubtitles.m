@@ -22,13 +22,13 @@ static NSString *TKThreeLetterLanguage(NSString *code)
     if (!tracks.count) return nil;
     NSMutableArray *wanted = [NSMutableArray array];
     for (NSString *l in [NSLocale preferredLanguages]) {
-        NSString *code = TKThreeLetterLanguage([[l componentsSeparatedByString:@"-"] firstObject]);
+        NSString *code = TKThreeLetterLanguage(TKFirst([l componentsSeparatedByString:@"-"]));
         if (code.length && ![wanted containsObject:code]) [wanted addObject:code];
         if (wanted.count >= 3) break;
     }
     if ([wanted containsObject:@"ces"] && ![wanted containsObject:@"slk"]) [wanted addObject:@"slk"];   // (close enough)
     NSString *(^langOf)(NSDictionary *) = ^NSString *(NSDictionary *t) {
-        return [[[TKStr(t[@"lang"]) componentsSeparatedByString:@"-"] firstObject] lowercaseString] ?: @"";
+        return [TKFirst([TKStr(t[@"lang"]) componentsSeparatedByString:@"-"]) lowercaseString] ?: @"";
     };
     for (NSString *code in wanted) {                       // the device's languages: what is spoken first, then a translation
         NSDictionary *mt = nil;

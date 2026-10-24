@@ -62,7 +62,7 @@
     [self.scroll addSubview:self.titleLabel];
 
     self.subtitleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.subtitleLabel.text = L(@"Import your TikTok browser session to enjoy your personal For You feed, following list, own profile and notifications.");
+    self.subtitleLabel.text = L(@"Import a signed-in TikTok browser session. TikTak+ verifies the account directly with TikTok. Some account features may be restricted by TikTok.");
     self.subtitleLabel.font = [UIFont systemFontOfSize:14];
     self.subtitleLabel.textColor = [theme secondaryTextColor];
     self.subtitleLabel.textAlignment = NSTextAlignmentCenter;
@@ -132,7 +132,7 @@
     [self.scroll addSubview:self.guideCard];
 
     self.guideLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.guideLabel.text = L(@"How to sign in:\n1. Log into tiktok.com in your PC or mobile browser.\n2. Export your cookies (e.g. using Cookie-Editor or browser tools) to a ttsession.json file.\n3. Put ttsession.json into TikTak's Documents folder via iTunes File Sharing or Filza/iFile.\n4. Tap 'Import Session File' above. TikTak securely sends it to your Pi helper and deletes the local file.");
+    self.guideLabel.text = L(@"How to sign in:\n1. Log into tiktok.com in your PC or mobile browser.\n2. Export your cookies (e.g. using Cookie-Editor or browser tools) to a ttsession.json file.\n3. Put ttsession.json into TikTak's Documents folder via iTunes File Sharing or Filza/iFile.\n4. Tap 'Import Session File' above. TikTak+ verifies and stores it securely on this device, then deletes the imported file. No helper is used.");
     self.guideLabel.font = [UIFont systemFontOfSize:12];
     self.guideLabel.textColor = [theme secondaryTextColor];
     self.guideLabel.numberOfLines = 0;
@@ -279,6 +279,9 @@
     alert.alertViewStyle = UIAlertViewStylePlainTextInput;
     UITextField *tf = [alert textFieldAtIndex:0];
     tf.placeholder = @"{\"sessionid\": \"...\"}";
+    tf.secureTextEntry = YES;
+    tf.autocorrectionType = UITextAutocorrectionTypeNo;
+    tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
     alert.tag = 200;
     [alert show];
 }

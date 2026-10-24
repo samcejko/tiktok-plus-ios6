@@ -44,12 +44,12 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
 - (NSInteger)tableView:(UITableView *)t numberOfRowsInSection:(NSInteger)s
 {
     switch (s) {
-        case SecServer: return 4;
-        case SecAccount: return [TKSession sharedSession].signedIn ? 5 : 1;
+        case SecServer: return 2;
+        case SecAccount: return [TKSession sharedSession].signedIn ? 3 : 1;
         case SecFeed: return 3;
         case SecPlayback: return 3;
         case SecAppearance: return 1;
-        case SecNetwork: return 1;
+        case SecNetwork: return 0;
         case SecData: return 2;
         case SecAbout: return 2;
     }
@@ -59,9 +59,9 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
 - (NSString *)tableView:(UITableView *)t titleForHeaderInSection:(NSInteger)s
 {
     switch (s) {
-        case SecServer: return L(@"Server (your Raspberry Pi)");
+        case SecServer: return L(@"Connection");
         case SecAccount: return L(@"Account");
-        case SecFeed: return L(@"For You");
+        case SecFeed: return L(@"Explore");
         case SecPlayback: return L(@"Playback");
         case SecAppearance: return L(@"Appearance");
         case SecNetwork: return L(@"Network");
@@ -73,10 +73,10 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
 
 - (NSString *)tableView:(UITableView *)t titleForFooterInSection:(NSInteger)s
 {
-    if (s == SecServer) return L(@"The helper on your Pi finds the videos. Enter its address, e.g. https://ytdlp.samcejko.eu. 'Stream through the server' routes the video through the Pi too - slower, but needed away from home.");
+    if (s == SecServer) return L(@"TikTak+ connects directly to TikTok. No helper server is required. Session cookies stay on this device and are sent only to TikTok.");
     if (s == SecAccount) {
         if ([TKSession sharedSession].signedIn) {
-            return L(@"Actions like liking, following, and commenting run directly under your account on TikTok's servers. A throwaway account is recommended.");
+            return L(@"Account features depend on what TikTok makes available. Sending likes, follows and comments is not supported in this version.");
         } else {
             return L(@"Drop ttsession.json or ttcookies.json into TikTak's Documents folder via iTunes or Filza to sign in.");
         }
@@ -100,10 +100,8 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
     [[TKTheme shared] styleCell:cell];
     NSInteger s = ip.section, r = ip.row;
     if (s == SecServer) {
-        if (r == 0) { cell.textLabel.text = L(@"Address"); cell.detailTextLabel.text = [TKSettings serverBaseURL].length ? [TKSettings serverBaseURL] : L(@"Not set"); cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator; }
-        else if (r == 1) { cell.textLabel.text = L(@"Key"); cell.detailTextLabel.text = [TKSettings serverKey].length ? @"••••••" : L(@"None"); cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator; }
-        else if (r == 2) { cell.textLabel.text = L(@"Test connection"); cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator; }
-        else { cell.textLabel.text = L(@"Stream through the server"); cell.accessoryView = [self switchOn:[TKSettings streamThroughServer] tag:10]; cell.selectionStyle = UITableViewCellSelectionStyleNone; }
+        if (r == 0) { cell.textLabel.text = L(@"Direct connection to TikTok"); cell.selectionStyle = UITableViewCellSelectionStyleNone; }
+        else { cell.textLabel.text = L(@"Test connection"); cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator; }
     } else if (s == SecAccount) {
         if ([TKSession sharedSession].signedIn) {
             if (r == 0) {
@@ -125,18 +123,9 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
                     }];
                 }
             } else if (r == 1) {
-                cell.textLabel.text = L(@"Notifications");
-                cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            } else if (r == 2) {
-                cell.textLabel.text = L(@"Liked videos");
-                cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            } else if (r == 3) {
-                cell.textLabel.text = L(@"Allow actions on account (experimental)");
-                cell.accessoryView = [self switchOn:[TKSettings allowAccountWrites] tag:50];
-                cell.selectionStyle = UITableViewCellSelectionStyleNone;
-            } else if (r == 4) {
-                cell.textLabel.text = L(@"Sign out");
-                cell.textLabel.textColor = [UIColor colorWithRed:0.8 green:0.2 blue:0.2 alpha:1];
+                cell.textLabel.text = L(@"Liked videos"); cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            } else {
+                cell.textLabel.text = L(@"Sign out"); cell.textLabel.textColor = [UIColor colorWithRed:0.8 green:0.2 blue:0.2 alpha:1];
             }
         } else {
             cell.textLabel.text = L(@"Sign in");
@@ -204,20 +193,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
 {
     [t deselectRowAtIndexPath:ip animated:YES];
     NSInteger s = ip.section, r = ip.row;
-    if (s == SecServer && r == 0) {
-        UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Server address") message:@"https://ytdlp.samcejko.eu" delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Save"), nil];
-        a.alertViewStyle = UIAlertViewStylePlainTextInput;
-        a.tag = 1;
-        [a textFieldAtIndex:0].text = [TKSettings serverBaseURL];
-        [a textFieldAtIndex:0].keyboardType = UIKeyboardTypeURL;
-        [a textFieldAtIndex:0].autocapitalizationType = UITextAutocapitalizationTypeNone;
-        [a show];
-    } else if (s == SecServer && r == 1) {
-        UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Server key") message:L(@"The key you set on the Pi (leave empty for none).") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Save"), nil];
-        a.alertViewStyle = UIAlertViewStyleSecureTextInput;
-        a.tag = 2;
-        [a show];
-    } else if (s == SecServer && r == 2) {
+    if (s == SecServer && r == 1) {
         [self testConnection];
     } else if (s == SecAccount) {
         if ([TKSession sharedSession].signedIn) {
@@ -226,10 +202,8 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
                     [self.navigationController pushViewController:[[TKProfileViewController alloc] initWithHandle:[TKSession sharedSession].handle] animated:YES];
                 }
             } else if (r == 1) {
-                [self.navigationController pushViewController:[[TKNotificationsViewController alloc] init] animated:YES];
-            } else if (r == 2) {
                 [self.navigationController pushViewController:[[TKLikedViewController alloc] init] animated:YES];
-            } else if (r == 4) {
+            } else if (r == 2) {
                 UIAlertView *a = [[UIAlertView alloc] initWithTitle:L(@"Sign out") message:L(@"Are you sure you want to sign out?") delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Sign out"), nil];
                 a.tag = 51;
                 [a show];
@@ -297,7 +271,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecNetwork, S
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:sp];
     [TKTikTok checkHealth:^(BOOL ok, NSString *info, NSError *error) {
         self.navigationItem.rightBarButtonItem = nil;
-        if (ok) [TKUtils alertWithTitle:L(@"Connected") message:[NSString stringWithFormat:L(@"The server is up (yt-dlp %@)."), info ?: @"?"]];
+        if (ok) [TKUtils alertWithTitle:L(@"Connected") message:info ?: L(@"Direct connection to TikTok")];
         else [TKUtils alertWithTitle:L(@"Not connected") message:error.localizedDescription ?: L(@"The server did not answer.")];
     }];
 }

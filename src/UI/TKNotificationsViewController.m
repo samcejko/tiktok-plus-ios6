@@ -43,6 +43,8 @@
     self.emptyLabel.font = [UIFont systemFontOfSize:15];
     self.emptyLabel.textColor = [theme secondaryTextColor];
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
+    self.emptyLabel.numberOfLines = 0;
+    self.emptyLabel.backgroundColor = [UIColor clearColor];
     self.emptyLabel.hidden = YES;
     [self.view addSubview:self.emptyLabel];
 
@@ -72,6 +74,7 @@
     self.task = [TKTikTok notificationsWithCount:40 completion:^(NSArray *notifications, NSError *error) {
         [self.spinner stopAnimating];
         self.items = notifications ?: @[];
+        self.emptyLabel.text = error ? error.localizedDescription : L(@"No notifications yet.");
         self.emptyLabel.hidden = (self.items.count > 0);
         [self.tableView reloadData];
     }];
