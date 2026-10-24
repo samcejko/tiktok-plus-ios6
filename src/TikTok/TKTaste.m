@@ -260,6 +260,7 @@ static BOOL TKGenericTag(NSString *tag)
 + (NSString *)localizedTopicName:(NSInteger)topicId
 {
     switch (topicId) {
+        case 120: return L(@"All");
         case 100: return L(@"Anime & Comics");
         case 101: return L(@"Shows");
         case 102: return L(@"Beauty Care");
