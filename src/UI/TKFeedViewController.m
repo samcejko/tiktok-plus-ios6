@@ -1068,7 +1068,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 {
     TKVideoCell *cell=[self currentCell];
     return @{@"playback":[cell playbackDiagnostics] ?: @{},@"count":@([self count]),@"index":@(self.currentIndex),@"mode":@(self.feedMode),@"loading":@(self.feed.loading),
-        @"videoId":cell.video.videoId ?: @"",@"time":@(isfinite(cell.currentTime)?cell.currentTime:0),@"duration":@(isfinite(cell.duration)?cell.duration:0),
+        @"videoId":cell.video.videoId ?: @"",@"likeStateKnown":@(cell.video.likeStateKnown),@"liked":@(cell.video.liked),@"likeCount":@(cell.video.likes),@"time":@(isfinite(cell.currentTime)?cell.currentTime:0),@"duration":@(isfinite(cell.duration)?cell.duration:0),
         @"playing":@(cell.playing),@"rate":@([cell playerRate]),@"selectedSpeed":@(cell.selectedPlaybackSpeed),@"savedCurrent":@([TKSettings isSaved:cell.video.videoId]),@"photo":@(cell.video.isPhoto),@"visible":@(self.visible),@"error":self.messageLabel.hidden ? @"" : (self.messageLabel.text ?: @"")};
 }
 

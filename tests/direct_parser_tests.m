@@ -2,6 +2,7 @@
 #import "TKDirectParser.h"
 #import "TKAccountAction.h"
 #import "TKWebSignature.h"
+#import "TKGnarlySignature.h"
 #import "TKCommon.h"
 #import "../src/Util/TKVideoLibrary.h"
 #include <stdio.h>
@@ -160,6 +161,15 @@ int TKRunDirectParserTests(void)
         NSDictionary *nested=[TKAccountAction request:@"publish" parameters:@{@"video":@"123",@"comment":@"456",@"parent":@"789",@"text":@"Reply"}];
         check([nested[@"params"][@"reply_id"] isEqual:@"789"] && [nested[@"params"][@"reply_to_reply_id"] isEqual:@"456"], "nested reply retains root and selected child IDs");
         check(![TKAccountAction request:@"publish" parameters:@{@"video":@"123",@"parent":@"789",@"text":@"Reply"}], "reply root cannot exist without reply target");
+        uint8_t entropy[54]; for(unsigned i=0;i<54;i++)entropy[i]=(uint8_t)i;
+        NSData *fixedEntropy=[NSData dataWithBytes:entropy length:sizeof(entropy)];
+        check([TKGnarlySignatureFixture(@"aid=1988&itemId=123",@"",@"fixture-browser",1700000000000ULL,fixedEntropy,3,1) isEqual:@"Mwc4SMd/vmhhpX4iu7pXaB9WxOL7ui1UuieiprsxbN/47iGJh4MSUfO4cVacYs80oFG-C9WjhCR9mKEOcZu0uIeb0ZAU9uWD9kk6tIwZbVvXS0zpS8Io3NfnUV/dv9bQvJZ4gQnGDMGjE9RiE57Qsb1zw62LUysbSoJTQ8JXnC-awECJuafddkkKaJa98CteFi-rUqFfTbL6prokd5nvpt4pVhSDZWBe4ydDc66EoOfHITnRAz8GgwnKWDTJGAQTVWUay9okzLT-MqTX1JexdOfstCNks9TcEkrfUSPLM8y4Yk/QPGIT6uAVnBhgY2NXqu=="], "native new-signature reference vector 1");
+        check([TKGnarlySignatureFixture(@"text=%C4%8Desk%C3%BD%20test",@"České tělo 😀",@"fixture-browser",1777300000000ULL,fixedEntropy,3,1) isEqual:@"Mwc4SMnuuZvt0uz30kIg9IfetZ/-b0bMb8ZLSNnA3VGTU0RmUJuNvQeWgMA2D9WBDJkYEQP/vmhhpX4iu7Wy7A9WxOL7ui1UuieipSLnbN/47iGJh4MSUfO4cVacYs80oFG-C9WjhCR9mKEOcs7QtWH0w7Ez3DPvZwFoQ8j0vkrIcjRWpabdmS8GjQYb84XeFi-rUqFfTbL6prokd5nvpt4pVhSDZWBe4ydDc66EoOfHITnRAV0iEwzwkKr2BvlgV0JByQ6xLSHrXq991UAxdp8D9k4Fs9TcEkrfUSPLM8y4Yk/QPGIT6uAVnBhgi2VCNu=="], "native new-signature reference vector 2");
+        check([TKGnarlySignatureFixture(@"",@"",@"",0ULL,fixedEntropy,3,1) isEqual:@"Mwc4SMd/vmhhpX4i0EtU0KZmd0VmWnk/9iGBUXpPvOWpzALv3tiwexcu43xhNLYtdFvBxuAoppzqUxdt1zwNsbM7wY333-HeVw1MRVKXdIPwjm/WuYALEZqoOOfz8uMY/BtESoUch8Am9cLaDMwS9OfEVhqg30FS4y3nPrVcntRwIYuevWCQEwuw8hm4BvMAMbtHK28k9uiL3eJt19zxZ4Wy-1g9zMd8uub9ukZS0Inv9ZGEtuRrt8uVbNezSVAs30Wh38k7UNwIvMvlg9z1gJIqDQffEM/yEu5YEpPzM8JpYufAPGkYQ6fSlI=="], "native new-signature reference vector 3");
+        check(!TKGnarlySignatureFixture(@"q",@"",@"UA",0,[NSData data],1,1), "invalid signing entropy rejected");
+        NSString *randomSignature=TKGnarlySignature(@"q=1",@"",@"UA");
+        check(randomSignature.length>=320 && randomSignature.length<=400, "device secure random signing produces a bounded signature");
+        check(![randomSignature isEqual:TKGnarlySignature(@"q=1",@"",@"UA")], "new request has fresh signing entropy");
         fprintf(stdout,"Direct parser and library: %u checks, %u failures\n",checks,failures);
     }
     return failures ? 1 : 0;

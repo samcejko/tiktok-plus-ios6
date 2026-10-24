@@ -24,3 +24,5 @@ The license texts of the shipped libraries are included in the app bundle (Setti
 ## Protocol references
 
 The independently implemented TikTok web account-action paths and parameter names were cross-checked against caixax/opentok's MIT-licensed endpoints.ts and signedFetch.ts (2026-10-24): https://github.com/caixax/opentok/tree/main/src/main/tiktok . Its Electron/browser signer is not bundled or used. The on-device signature implementation has different capabilities; live acceptance of writes must be validated separately.
+
+- **SuperDuperNoob/tiktok-xgnarly-decoded** — MIT, copyright 2026. The native TKGnarlySignature implementation adapts its independently reconstructed signing wire format and cipher. Upstream: https://github.com/SuperDuperNoob/tiktok-xgnarly-decoded . Full license: docs/licenses/tiktok-xgnarly-LICENSE.txt, also bundled in Resources/licenses. Deterministic native output is compared against the upstream encoder with pinned time/entropy.

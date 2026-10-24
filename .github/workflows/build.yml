@@ -120,6 +120,7 @@ jobs:
           rm -rf Resources/licenses && mkdir -p Resources/licenses
           cp LICENSE Resources/licenses/TikTak-LICENSE.txt
           cp THIRD-PARTY-NOTICES.md Resources/licenses/THIRD-PARTY-NOTICES.txt
+          cp docs/licenses/tiktok-xgnarly-LICENSE.txt Resources/licenses/tiktok-xgnarly-LICENSE.txt
           cp vendor/mbedtls/LICENSE Resources/licenses/mbedtls-LICENSE.txt
           ls -la Resources/licenses
 
@@ -208,12 +209,12 @@ jobs:
           fi
           mkdir -p packages
           mkdir -p /tmp/tiktak-parser-objects
-          for source in tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKAccountAction.m src/TikTok/TKWebSignature.m src/Util/TKVideoLibrary.m src/TKCommon.m; do
+          for source in tests/direct_parser_tests.m src/TikTok/TKDirectParser.m src/TikTok/TKAccountAction.m src/TikTok/TKWebSignature.m src/TikTok/TKGnarlySignature.m src/Util/TKVideoLibrary.m src/TKCommon.m; do
             clang -target "$TARGET" -isysroot "$SDK" -fobjc-arc -fblocks -Os \
               -Isrc -Isrc/TikTok -c "$source" -o "/tmp/tiktak-parser-objects/$(basename "$source").o"
           done
           # Link compiled objects without the ARC driver flag: iOS 6 supplies its ARC runtime itself.
-          clang -target "$TARGET" -isysroot "$SDK" -lobjc -framework Foundation -framework UIKit -framework CFNetwork \
+          clang -target "$TARGET" -isysroot "$SDK" -lobjc -framework Foundation -framework UIKit -framework CFNetwork -framework Security \
             /tmp/tiktak-parser-objects/*.o -o "packages/direct-parser-tests${{ matrix.suffix }}"
           if [ "${{ matrix.scheme }}" != rootless ]; then
             install_name_tool -change /System/Library/Frameworks/CFNetwork.framework/CFNetwork /System/Library/Frameworks/Foundation.framework/Foundation "packages/direct-parser-tests${{ matrix.suffix }}"
