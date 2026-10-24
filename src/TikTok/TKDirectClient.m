@@ -125,7 +125,8 @@ static NSString * const TKWebUA = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ap
             NSDictionary *ctx=TKDict(TKDict(scope)[@"webapp.app-context"]); NSString *csrf=TKStr(ctx[@"csrfToken"]);
             if(!csrf.length)for(NSString *pair in [[self cookieHeader:jar URL:[NSURL URLWithString:@"https://www.tiktok.com/"]] componentsSeparatedByString:@"; "])if([pair hasPrefix:@"tt_csrf_token="]) { csrf=[pair substringFromIndex:14]; break; }
             BOOL same=[token isEqualToString:TKStr(c.session[@"token"])];
-            completion(@{@"verified":@(same),@"csrfAvailable":@(csrf.length>0),@"deviceContextAvailable":@(TKStr(ctx[@"wid"]).length>0),@"pageErrorCode":@(pageError.code),@"writesSent":@0});
+            BOOL contextMatches=!TKStr(TKDict(ctx[@"user"])[@"uid"]).length || [TKStr(TKDict(ctx[@"user"])[@"uid"]) isEqualToString:TKStr(user[@"userId"])];
+            completion(@{@"verified":@(same),@"contextMatches":@(contextMatches),@"csrfAvailable":@(csrf.length>0),@"deviceContextAvailable":@(TKStr(ctx[@"wid"]).length>0),@"pageErrorCode":@(pageError.code),@"writesSent":@0});
         }];
     }]; return outer;
 }

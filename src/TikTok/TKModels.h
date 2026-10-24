@@ -51,6 +51,7 @@
 
 @interface TKComment : NSObject
 @property (nonatomic, copy) NSString *commentId;
+@property (nonatomic, copy) NSString *parentCommentId;
 @property (nonatomic, copy) NSString *author;
 @property (nonatomic, copy) NSString *authorName;
 @property (nonatomic, copy) NSString *avatarURL;

@@ -187,6 +187,8 @@ static UILabel *TKCommentSizingLabel(void)
             self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:L(@"Comment") style:UIBarButtonItemStylePlain target:self action:@selector(postCommentPrompt)];
         }
     }
+    self.refreshControl=[[UIRefreshControl alloc] init];
+    [self.refreshControl addTarget:self action:@selector(load) forControlEvents:UIControlEventValueChanged];
     [self load];
 }
 
@@ -207,15 +209,15 @@ static UILabel *TKCommentSizingLabel(void)
 - (void)load
 {
     [self.task cancel];
-    self.comments = nil;
+    self.comments = nil; [self.replies removeAllObjects]; [self.loadingReplies removeAllObjects];
     self.loading = YES;
     self.status = self.video ? L(@"Loading comments…") : @"";
     [self rebuildRows];
-    if (!self.video.videoId.length) return;
+    if (!self.video.videoId.length) { self.loading=NO; [self.refreshControl endRefreshing]; return; }
     TKVideo *forVideo = self.video;
     self.task = [TKTikTok commentsForVideo:self.video.videoId count:50 completion:^(NSArray *comments, NSError *error) {
         if (forVideo != self.video) return;      // (switched to another video meanwhile)
-        self.loading = NO;
+        self.loading = NO; [self.refreshControl endRefreshing];
         self.comments = comments;
         if (error) self.status = error.localizedDescription;
         else if (!comments.count) self.status = L(@"No comments to show.");
@@ -453,14 +455,15 @@ static UILabel *TKCommentSizingLabel(void)
     if(buttonIndex==alertView.cancelButtonIndex || !text.length)return;
     if(video!=self.video || self.sending)return;
     self.sending=YES;
-    [TKTikTok postCommentOnVideoId:video.videoId text:text replyTo:parent.commentId completion:^(BOOL ok,NSDictionary *result,NSError *error){
+    [TKTikTok postCommentOnVideoId:video.videoId text:text replyTo:parent completion:^(BOOL ok,NSDictionary *result,NSError *error){
         self.sending=NO;
         if(![token isEqualToString:[TKSession sharedSession].token])return;
         if(ok) [self.drafts removeObjectForKey:key];
         if(video!=self.video)return;
         if(ok) {
+            [self.task cancel]; self.loading=NO; [self.refreshControl endRefreshing];
             TKComment *comment=[TKComment commentFromJSON:result];
-            if(parent) { comment.isReply=YES; NSMutableArray *r=[self.replies[parent.commentId] mutableCopy] ?: [NSMutableArray array]; [r addObject:comment]; self.replies[parent.commentId]=r; parent.replyCount++; }
+            if(parent) { comment.isReply=YES; comment.parentCommentId=parent.parentCommentId ?: parent.commentId; TKComment *root=parent; for(TKComment *c in self.comments)if([c.commentId isEqualToString:comment.parentCommentId])root=c; NSMutableArray *r=[self.replies[comment.parentCommentId] mutableCopy] ?: [NSMutableArray array]; [r addObject:comment]; self.replies[comment.parentCommentId]=r; root.replyCount++; }
             else { NSMutableArray *top=[self.comments mutableCopy] ?: [NSMutableArray array]; [top insertObject:comment atIndex:0]; self.comments=top; }
             self.video.commentCount++; [self rebuildRows];
         } else [TKUtils alertWithTitle:L(@"Action not confirmed") message:[NSString stringWithFormat:@"%@\n\n%@",error.localizedDescription ?: L(@"Could not post comment."),L(@"Your draft is kept. Refresh comments before sending it again.")]];

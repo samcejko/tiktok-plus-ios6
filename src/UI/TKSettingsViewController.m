@@ -221,15 +221,6 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
 
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
 {
-    if (alertView.tag == 50) {
-        if (buttonIndex == alertView.cancelButtonIndex) {
-            [TKSettings setAllowAccountWrites:NO];
-        } else {
-            [TKSettings setAllowAccountWrites:YES];
-        }
-        [self.tableView reloadData];
-        return;
-    }
     if (alertView.tag == 51) {
         if (buttonIndex != alertView.cancelButtonIndex) {
             [[TKSession sharedSession] signOut];

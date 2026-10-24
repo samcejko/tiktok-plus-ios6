@@ -157,6 +157,9 @@ int TKRunDirectParserTests(void)
         check(![TKDirectParser profile:@{@"user":@{@"uniqueId":@"fixture",@"id":@"42"}}][@"relation"], "missing relationship remains unknown");
         NSDictionary *commentState=[TKDirectParser comment:@{@"cid":@"456",@"text":@"test",@"user_digged":@1,@"user":@{@"uid":@"42"}}];
         check([commentState[@"userId"] isEqual:@"42"] && [commentState[@"liked"] boolValue], "comment owner and liked state preserved");
+        NSDictionary *nested=[TKAccountAction request:@"publish" parameters:@{@"video":@"123",@"comment":@"456",@"parent":@"789",@"text":@"Reply"}];
+        check([nested[@"params"][@"reply_id"] isEqual:@"789"] && [nested[@"params"][@"reply_to_reply_id"] isEqual:@"456"], "nested reply retains root and selected child IDs");
+        check(![TKAccountAction request:@"publish" parameters:@{@"video":@"123",@"parent":@"789",@"text":@"Reply"}], "reply root cannot exist without reply target");
         fprintf(stdout,"Direct parser and library: %u checks, %u failures\n",checks,failures);
     }
     return failures ? 1 : 0;

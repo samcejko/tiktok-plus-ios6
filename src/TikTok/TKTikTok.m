@@ -170,7 +170,7 @@
         NSMutableArray *replies = [NSMutableArray array];
         for (NSDictionary *item in TKArr(TKDict(json)[@"items"])) {
             TKComment *c = [TKComment commentFromJSON:TKDict(item)];
-            c.isReply = YES;
+            c.isReply = YES; c.parentCommentId=commentId;
             if (c.text.length) [replies addObject:c];
         }
         completion(replies, nil);
@@ -388,9 +388,9 @@
 {
     return [self postCommentOnVideoId:videoId text:text replyTo:nil completion:completion];
 }
-+ (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text replyTo:(NSString *)commentId completion:(void (^)(BOOL, NSDictionary *, NSError *))completion
++ (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text replyTo:(TKComment *)comment completion:(void (^)(BOOL, NSDictionary *, NSError *))completion
 {
-    return [TKDirectClient performAction:@"publish" parameters:@{@"video":videoId ?: @"",@"text":text ?: @"",@"comment":commentId ?: @""} completion:^(id json,NSInteger status,NSError *error){ if(completion)completion(!error,[TKDirectParser comment:TKDict(json)[@"comment"]],error); }];
+    return [TKDirectClient performAction:@"publish" parameters:@{@"video":videoId ?: @"",@"text":text ?: @"",@"comment":comment.commentId ?: @"",@"parent":comment.parentCommentId ?: @""} completion:^(id json,NSInteger status,NSError *error){ if(completion)completion(!error,[TKDirectParser comment:TKDict(json)[@"comment"]],error); }];
 }
 + (TKHTTPTask *)likeComment:(TKComment *)comment videoId:(NSString *)videoId on:(BOOL)on completion:(void (^)(BOOL, NSError *))completion
 {

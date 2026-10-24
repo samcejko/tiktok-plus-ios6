@@ -65,7 +65,7 @@
 + (TKHTTPTask *)followUserId:(NSString *)userId secUid:(NSString *)secUid type:(NSInteger)type completion:(void (^)(BOOL success, NSError *error))completion;
 + (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text completion:(void (^)(BOOL success, NSDictionary *comment, NSError *error))completion;
 
-+ (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text replyTo:(NSString *)commentId completion:(void (^)(BOOL success, NSDictionary *comment, NSError *error))completion;
++ (TKHTTPTask *)postCommentOnVideoId:(NSString *)videoId text:(NSString *)text replyTo:(TKComment *)comment completion:(void (^)(BOOL success, NSDictionary *comment, NSError *error))completion;
 + (TKHTTPTask *)likeComment:(TKComment *)comment videoId:(NSString *)videoId on:(BOOL)on completion:(void (^)(BOOL success, NSError *error))completion;
 + (TKHTTPTask *)deleteComment:(TKComment *)comment completion:(void (^)(BOOL success, NSError *error))completion;
 @end

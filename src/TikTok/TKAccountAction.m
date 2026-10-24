@@ -31,7 +31,9 @@ static BOOL TKActionID(NSString *s)
         if (!TKActionID(video) || !text.length || text.length > 2200 || [text rangeOfString:[NSString stringWithFormat:@"%C",(unichar)0]].location != NSNotFound || (cid.length && !TKActionID(cid))) return nil;
         path = @"/api/comment/publish/"; target = video;
         [q addEntriesFromDictionary:@{@"aweme_id":video,@"text":text,@"text_extra":@"[]"}];
-        if (cid.length) { q[@"reply_id"] = cid; q[@"reply_to_reply_id"] = @"0"; }
+        NSString *parent=TKStr(p[@"parent"]);
+        if(parent.length && (!cid.length || !TKActionID(parent)))return nil;
+        if (cid.length) { q[@"reply_id"] = parent.length ? parent : cid; q[@"reply_to_reply_id"] = parent.length ? cid : @"0"; }
     } else if ([action isEqualToString:@"deleteComment"]) {
         if (!TKActionID(cid) || !TKActionID(TKStr(p[@"owner"]))) return nil;
         path = @"/api/comment/delete/"; target = cid; q[@"cid"] = cid;
