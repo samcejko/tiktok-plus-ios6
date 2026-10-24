@@ -17,6 +17,7 @@
 #import "TKModern.h"
 #import "TKCommon.h"
 #import "TKSession.h"
+#import "TKKeychain.h"
 #include <dlfcn.h>
 #include <signal.h>
 #include <mach/mach.h>
@@ -128,7 +129,12 @@ static BOOL TKPressView(UIView *v, NSString *text)
     if ([target isEqualToString:@"selftest"]) {
         extern int TKRunDirectParserTests(void);
         int failures=TKRunDirectParserTests();
-        NSDictionary *result=@{@"passed":@(failures==0),@"failures":@(failures),@"version":[TKUtils appVersion]};
+        NSString *key=[@"direct.selftest." stringByAppendingString:[[NSProcessInfo processInfo] globallyUniqueString]];
+        BOOL saved=[TKKeychain setSecureString:@"fixture-keychain-value" forKey:key];
+        BOOL read=saved && [[TKKeychain secureStringForKey:key] isEqualToString:@"fixture-keychain-value"];
+        BOOL removed=[TKKeychain setSecureString:nil forKey:key];
+        BOOL keychain=read && removed && ![TKKeychain secureStringForKey:key].length;
+        NSDictionary *result=@{@"passed":@(failures==0 && keychain),@"parserFailures":@(failures),@"keychainPassed":@(keychain),@"version":[TKUtils appVersion]};
         [[TKUtils JSONDataFromObject:result] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tiktak-selftest.json"] atomically:YES];
         return YES;
     }

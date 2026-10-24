@@ -32,6 +32,6 @@ The legacy target remains iOS 6–10 (armv7); the separate modern target is iOS 
 
 `tests/direct_parser_tests.m` exercises real parsing logic: authentication proof, cookie import formats and rejection cases, exact 64-bit IDs, status validation, H.264 selection, photo posts, profile/comment normalization and deterministic web checksum vectors. CI builds the runner for both architectures. The same checks can run inside the actual app with the locally gated diagnostic command.
 
-Diagnostics require a `Documents/debug` file. `tiktakplus:selftest` writes only pass/failure information; `tiktakplus:feedback` writes counts/player state. Neither exports cookies or account identity. Remove `Documents/debug` after hardware verification.
+Diagnostics require a `Documents/debug` file. `tiktakplus:selftest` runs the parser fixtures and a temporary Keychain write/read/delete check, then writes only pass/failure information; `tiktakplus:feedback` writes counts/player state. Neither exports cookies or account identity. Remove `Documents/debug` after hardware verification.
 
 Hardware results and any remaining limitations are recorded in the local audit report before a public release is considered ready.
