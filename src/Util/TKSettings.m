@@ -27,6 +27,8 @@ static const NSUInteger TKMaxSeen = 4000;
         @"seenVideos": @[],
         @"watchHistory": @[],
         @"recordWatchHistory": @YES,
+        @"favoriteCreators": @[], @"favoriteSounds": @[], @"blockedCreators": @[], @"hiddenKeywords": @[], @"collections": @[],
+        @"hidePhotoPosts": @NO, @"maxVideoDuration": @0, @"defaultPlaybackSpeed": @1, @"cleanVideo": @NO,
         @"allowAccountWrites": @NO,
     }];
 }
@@ -152,6 +154,7 @@ static const NSUInteger TKMaxSeen = 4000;
     [list insertObject:json atIndex:0];
     while (list.count > TKMaxSaved) [list removeLastObject];
     [DEF setObject:list forKey:@"savedVideos"];
+    [self pruneCollections];
     [self save];
     [self notifyLibrary];
 }
@@ -161,6 +164,7 @@ static const NSUInteger TKMaxSeen = 4000;
     NSMutableArray *list = [[self savedVideos] mutableCopy];
     for (NSInteger i = (NSInteger)list.count - 1; i >= 0; i--) if ([TKStr(list[(NSUInteger)i][@"id"]) isEqualToString:videoId]) [list removeObjectAtIndex:(NSUInteger)i];
     [DEF setObject:list forKey:@"savedVideos"];
+    [self pruneCollections];
     [self save];
     [self notifyLibrary];
 }
@@ -210,4 +214,154 @@ static const NSUInteger TKMaxSeen = 4000;
     [self notify];
 }
 
+#pragma mark - Favorites and content preferences
++ (NSArray *)favoriteCreators { return [DEF arrayForKey:@"favoriteCreators"] ?: @[]; }
++ (NSArray *)favoriteSounds { return [DEF arrayForKey:@"favoriteSounds"] ?: @[]; }
++ (BOOL)isFavoriteCreator:(NSString *)handle
+{
+    NSString *h = [TKVideoLibrary normalizedHandle:handle];
+    for (NSDictionary *d in [self favoriteCreators]) if ([d[@"handle"] isEqual:h]) return YES;
+    return NO;
+}
++ (BOOL)isFavoriteSound:(NSString *)soundId
+{
+    for (NSDictionary *d in [self favoriteSounds]) if ([d[@"id"] isEqual:soundId]) return YES;
+    return NO;
+}
++ (void)saveFavoriteCreator:(NSDictionary *)creator
+{
+    NSString *h = [TKVideoLibrary normalizedHandle:TKStr(creator[@"handle"])];
+    if (!h) return;
+    NSMutableArray *a = [[self favoriteCreators] mutableCopy];
+    for (NSInteger i=(NSInteger)a.count-1;i>=0;i--) if ([a[(NSUInteger)i][@"handle"] isEqual:h]) [a removeObjectAtIndex:(NSUInteger)i];
+    [a insertObject:@{@"handle":h, @"name":TKStr(creator[@"name"]) ?: h, @"avatar":TKStr(creator[@"avatar"]) ?: @""} atIndex:0];
+    while (a.count > 500) [a removeLastObject];
+    [DEF setObject:a forKey:@"favoriteCreators"]; [self save]; [self notifyLibrary];
+}
++ (void)removeFavoriteCreator:(NSString *)handle
+{
+    NSString *h = [TKVideoLibrary normalizedHandle:handle];
+    NSMutableArray *a = [[self favoriteCreators] mutableCopy];
+    for (NSInteger i=(NSInteger)a.count-1;i>=0;i--) if ([a[(NSUInteger)i][@"handle"] isEqual:h]) [a removeObjectAtIndex:(NSUInteger)i];
+    [DEF setObject:a forKey:@"favoriteCreators"]; [self save]; [self notifyLibrary];
+}
++ (void)saveFavoriteSound:(NSDictionary *)sound
+{
+    NSString *sid = TKStr(sound[@"id"]);
+    if (!sid.length || [sid rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"0123456789"] invertedSet]].location != NSNotFound) return;
+    NSMutableArray *a = [[self favoriteSounds] mutableCopy];
+    for (NSInteger i=(NSInteger)a.count-1;i>=0;i--) if ([a[(NSUInteger)i][@"id"] isEqual:sid]) [a removeObjectAtIndex:(NSUInteger)i];
+    [a insertObject:@{@"id":sid, @"name":TKStr(sound[@"name"]) ?: @"", @"author":TKStr(sound[@"author"]) ?: @"", @"cover":TKStr(sound[@"cover"]) ?: @""} atIndex:0];
+    while (a.count > 500) [a removeLastObject];
+    [DEF setObject:a forKey:@"favoriteSounds"]; [self save]; [self notifyLibrary];
+}
++ (void)removeFavoriteSound:(NSString *)soundId
+{
+    NSMutableArray *a = [[self favoriteSounds] mutableCopy];
+    for (NSInteger i=(NSInteger)a.count-1;i>=0;i--) if ([a[(NSUInteger)i][@"id"] isEqual:soundId]) [a removeObjectAtIndex:(NSUInteger)i];
+    [DEF setObject:a forKey:@"favoriteSounds"]; [self save]; [self notifyLibrary];
+}
++ (NSArray *)blockedCreators { return [DEF arrayForKey:@"blockedCreators"] ?: @[]; }
++ (void)setCreator:(NSString *)handle blocked:(BOOL)blocked
+{
+    NSString *h = [TKVideoLibrary normalizedHandle:handle]; if (!h) return;
+    NSMutableArray *a = [[self blockedCreators] mutableCopy]; [a removeObject:h];
+    if (blocked) [a insertObject:h atIndex:0];
+    while (a.count > 500) [a removeLastObject];
+    [DEF setObject:a forKey:@"blockedCreators"]; [self save]; [self notify]; [self notifyLibrary];
+}
++ (NSArray *)hiddenKeywords { return [DEF arrayForKey:@"hiddenKeywords"] ?: @[]; }
++ (void)setHiddenKeywords:(NSString *)text
+{
+    NSMutableArray *words = [NSMutableArray array];
+    for (NSString *part in [text componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@",\n"]]) {
+        NSString *word = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (!word.length || word.length > 100 || [words containsObject:word]) continue;
+        [words addObject:word]; if (words.count >= 100) break;
+    }
+    [DEF setObject:words forKey:@"hiddenKeywords"]; [self save]; [self notify];
+}
++ (BOOL)allowsPost:(NSDictionary *)video { return ![TKVideoLibrary video:video blockedByCreators:[self blockedCreators] keywords:[self hiddenKeywords] hidePhotos:[self hidePhotoPosts] maxDuration:[self maxVideoDuration]]; }
++ (BOOL)hidePhotoPosts { return [DEF boolForKey:@"hidePhotoPosts"]; }
++ (void)setHidePhotoPosts:(BOOL)value { [DEF setBool:value forKey:@"hidePhotoPosts"]; [self save]; [self notify]; }
++ (NSInteger)maxVideoDuration { return [DEF integerForKey:@"maxVideoDuration"]; }
++ (void)setMaxVideoDuration:(NSInteger)seconds { [DEF setInteger:MAX(0,seconds) forKey:@"maxVideoDuration"]; [self save]; [self notify]; }
++ (float)defaultPlaybackSpeed { float s=[DEF floatForKey:@"defaultPlaybackSpeed"]; return (s==0.5f || s==1.5f || s==2) ? s : 1; }
++ (void)setDefaultPlaybackSpeed:(float)speed { if (!(speed==0.5f || speed==1 || speed==1.5f || speed==2)) return; [DEF setFloat:speed forKey:@"defaultPlaybackSpeed"]; [self save]; [self notify]; }
++ (BOOL)cleanVideo { return [DEF boolForKey:@"cleanVideo"]; }
++ (void)setCleanVideo:(BOOL)value { [DEF setBool:value forKey:@"cleanVideo"]; [self save]; [self notify]; }
+
+#pragma mark - Collections
++ (void)pruneCollections
+{
+    NSMutableSet *saved=[NSMutableSet set]; for(NSDictionary *v in [self savedVideos])[saved addObject:v[@"id"]];
+    NSMutableArray *out=[NSMutableArray array];
+    for(NSDictionary *original in [self collections]) {
+        NSMutableDictionary *c=[original mutableCopy]; NSMutableArray *ids=[NSMutableArray array];
+        for(NSString *vid in TKArr(c[@"videos"]))if([saved containsObject:vid] && ![ids containsObject:vid])[ids addObject:vid];
+        c[@"videos"]=ids; [out addObject:c];
+    }
+    [DEF setObject:out forKey:@"collections"];
+}
++ (NSString *)watchLaterCollectionId
+{
+    NSString *existing=[DEF stringForKey:@"watchLaterCollectionId"];
+    for(NSDictionary *c in [self collections]) if([c[@"id"] isEqual:existing])return existing;
+    NSString *name=L(@"Watch later"), *cid=nil;
+    for(NSDictionary *c in [self collections]) if([TKStr(c[@"name"]) caseInsensitiveCompare:name]==NSOrderedSame)cid=c[@"id"];
+    if(!cid)cid=[self createCollection:name];
+    if(cid) { [DEF setObject:cid forKey:@"watchLaterCollectionId"]; [self save]; }
+    return cid;
+}
++ (NSArray *)collections { return [DEF arrayForKey:@"collections"] ?: @[]; }
++ (NSString *)createCollection:(NSString *)name
+{
+    NSString *n=[TKVideoLibrary collectionName:name]; if (!n || [self collections].count >= 100) return nil;
+    for (NSDictionary *c in [self collections]) if ([TKStr(c[@"name"]) caseInsensitiveCompare:n]==NSOrderedSame) return nil;
+    NSString *cid=[[NSProcessInfo processInfo] globallyUniqueString];
+    NSMutableArray *a=[[self collections] mutableCopy]; [a addObject:@{@"id":cid,@"name":n,@"videos":@[]}];
+    [DEF setObject:a forKey:@"collections"]; [self save]; [self notifyLibrary]; return cid;
+}
++ (BOOL)renameCollection:(NSString *)collectionId name:(NSString *)name
+{
+    NSString *n=[TKVideoLibrary collectionName:name]; if (!n) return NO;
+    NSMutableArray *a=[[self collections] mutableCopy];
+    for (NSDictionary *c in a) if (![c[@"id"] isEqual:collectionId] && [TKStr(c[@"name"]) caseInsensitiveCompare:n]==NSOrderedSame) return NO;
+    for (NSUInteger i=0;i<a.count;i++) if ([a[i][@"id"] isEqual:collectionId]) {
+        NSMutableDictionary *c=[a[i] mutableCopy]; c[@"name"]=n; a[i]=c;
+        [DEF setObject:a forKey:@"collections"]; [self save]; [self notifyLibrary]; return YES;
+    }
+    return NO;
+}
++ (void)deleteCollection:(NSString *)collectionId
+{
+    NSMutableArray *a=[[self collections] mutableCopy];
+    for (NSInteger i=(NSInteger)a.count-1;i>=0;i--) if ([a[(NSUInteger)i][@"id"] isEqual:collectionId]) [a removeObjectAtIndex:(NSUInteger)i];
+    [DEF setObject:a forKey:@"collections"]; [self save]; [self notifyLibrary];
+}
++ (NSArray *)videosInCollection:(NSString *)collectionId
+{
+    NSArray *ids=nil; for (NSDictionary *c in [self collections]) if ([c[@"id"] isEqual:collectionId]) ids=TKArr(c[@"videos"]);
+    NSMutableArray *out=[NSMutableArray array];
+    for (NSDictionary *video in [self savedVideos]) if ([ids containsObject:video[@"id"]]) [out addObject:video];
+    return out;
+}
++ (void)addVideo:(NSDictionary *)video toCollection:(NSString *)collectionId
+{
+    if (![TKVideoLibrary metadata:video]) return;
+    NSMutableArray *a=[[self collections] mutableCopy];
+    for (NSUInteger i=0;i<a.count;i++) if ([a[i][@"id"] isEqual:collectionId]) {
+        NSMutableDictionary *c=[a[i] mutableCopy]; NSMutableArray *ids=[TKArr(c[@"videos"]) mutableCopy] ?: [NSMutableArray array];
+        NSString *vid=TKStr(video[@"id"]); [ids removeObject:vid]; [ids insertObject:vid atIndex:0]; while(ids.count>500)[ids removeLastObject];
+        c[@"videos"]=ids; a[i]=c; [DEF setObject:a forKey:@"collections"]; [self saveVideoJSON:video]; return;
+    }
+}
++ (void)removeVideo:(NSString *)videoId fromCollection:(NSString *)collectionId
+{
+    NSMutableArray *a=[[self collections] mutableCopy];
+    for (NSUInteger i=0;i<a.count;i++) if ([a[i][@"id"] isEqual:collectionId]) {
+        NSMutableDictionary *c=[a[i] mutableCopy]; NSMutableArray *ids=[TKArr(c[@"videos"]) mutableCopy]; [ids removeObject:videoId]; c[@"videos"]=ids ?: @[]; a[i]=c;
+        [DEF setObject:a forKey:@"collections"]; [self save]; [self notifyLibrary]; return;
+    }
+}
 @end

@@ -27,6 +27,8 @@ This supersedes the old helper-only proposal. The default app connects to TikTok
 
 ## Explicit limits
 
+Local favorites, collections and hidden creators do not change TikTok account data. Collections reference saved-post IDs, are bounded to 100 collections / 500 saved posts, and are pruned when posts are unsaved. Deleting a collection preserves saved posts. Feed filters apply to Explore and account feeds; explicit profiles, direct links and the local library remain accessible. The sleep timer persists its wall-clock deadline, prevents automatic resume after expiry and can be cleared by an explicit playback interaction. Live playback also checks the deadline.
+
 TikTok’s undocumented web endpoints can refuse requests or require a supported browser. Keyword search, hashtag/music pages, account feeds and live availability must be tested separately; working Explore does not prove those features work. The app reports refusal as an error, rather than “nothing found.” General browser login/QR login, sending likes/follows/comments and notifications are not advertised as finished features. No account actions are sent automatically.
 
 The legacy target remains iOS 6–10 (armv7); the separate modern target is iOS 14+ (arm64 IPA), with a rootless package for iOS 15+. The existing UICollectionView-based interface is not an iOS 5 implementation.

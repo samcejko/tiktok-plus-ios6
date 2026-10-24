@@ -10,6 +10,7 @@
 #import "TKUtils.h"
 #import "TKModern.h"
 #import "TKCommon.h"
+#import "TKPlaybackClock.h"
 
 NSString * const TKLivePlaybackNotification = @"TKLivePlaybackNotification";
 
@@ -356,7 +357,7 @@ static NSInteger TKStreamLongSide(NSDictionary *s)
     self.playerLayer.frame = self.videoView.bounds;
     [self.videoView.layer addSublayer:self.playerLayer];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(streamRanOut:) name:AVPlayerItemDidPlayToEndTimeNotification object:self.player.currentItem];
-    [self.player play];
+    if(![TKPlaybackClock shared].expired) [self.player play];
     self.lastPosition = -1;
     self.playingSince = 0;
     self.lastProgress = [NSDate timeIntervalSinceReferenceDate];
@@ -400,6 +401,8 @@ static NSInteger TKStreamLongSide(NSDictionary *s)
 
 - (void)tick
 {
+    [[TKPlaybackClock shared] check];
+    if([TKPlaybackClock shared].expired) { [self.player pause]; [self.spinner stopAnimating]; self.messageLabel.text=L(@"Sleep timer ended."); self.messageLabel.hidden=NO; return; }
     NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
     if (!self.ended && now - self.lastRoomCheck > TKLiveRoomCheckEvery) [self checkRoom];
     AVPlayer *p = self.player;

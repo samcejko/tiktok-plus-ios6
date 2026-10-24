@@ -18,6 +18,8 @@
 #import "TKCommon.h"
 #import "TKSession.h"
 #import "TKKeychain.h"
+#import "TKPlaybackClock.h"
+#import "TKCollectionsViewController.h"
 #include <dlfcn.h>
 #include <signal.h>
 #include <mach/mach.h>
@@ -49,6 +51,9 @@ static BOOL TKPressView(UIView *v, NSString *text)
     if ([v isKindOfClass:[UITableViewCell class]]) {
         UITableViewCell *cell = (UITableViewCell *)v;
         if (!TKViewContainsText(cell, text)) return NO;
+        if ([cell.accessoryView isKindOfClass:[UISwitch class]]) {
+            UISwitch *sw=(UISwitch *)cell.accessoryView; [sw setOn:!sw.on animated:NO]; [sw sendActionsForControlEvents:UIControlEventValueChanged]; return YES;
+        }
         UIView *table = cell.superview;
         while (table && ![table isKindOfClass:[UITableView class]]) table = table.superview;
         NSIndexPath *ip = [(UITableView *)table indexPathForCell:cell];
@@ -126,6 +131,25 @@ static BOOL TKPressView(UIView *v, NSString *text)
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[TKUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
     UIViewController *top = [self topController];
+    if ([target isEqualToString:@"sleep"]) { [[TKPlaybackClock shared] startForSeconds:[params[@"seconds"] doubleValue]]; return YES; }
+    if ([target isEqualToString:@"input"]) {
+        for(UIWindow *w in [UIApplication sharedApplication].windows) {
+            NSMutableArray *views=[NSMutableArray arrayWithObject:w];
+            for(NSUInteger i=0;i<views.count;i++) { UIView *v=views[i]; [views addObjectsFromArray:v.subviews];
+                if([v isKindOfClass:[UIAlertView class]] && ((UIAlertView *)v).visible) { [[(UIAlertView *)v textFieldAtIndex:0] setText:params[@"text"] ?: @""]; return YES; }
+            }
+        }
+        return YES;
+    }
+    if ([target isEqualToString:@"row"] && [top isKindOfClass:[UITableViewController class]]) {
+        UITableView *table=[(UITableViewController *)top tableView]; NSInteger row=[params[@"n"] integerValue], section=[params[@"s"] integerValue];
+        if(section<0 || section>=table.numberOfSections || row<0 || row>=[table numberOfRowsInSection:section])return YES;
+        NSIndexPath *ip=[NSIndexPath indexPathForRow:row inSection:section];
+        if([params[@"actions"] boolValue] && [top isKindOfClass:[TKCollectionsViewController class]]) [(TKCollectionsViewController *)top showActionsForRow:row];
+        else if([params[@"delete"] boolValue] && [table.dataSource respondsToSelector:@selector(tableView:commitEditingStyle:forRowAtIndexPath:)]) [table.dataSource tableView:table commitEditingStyle:UITableViewCellEditingStyleDelete forRowAtIndexPath:ip];
+        else if([table.delegate respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) [table.delegate tableView:table didSelectRowAtIndexPath:ip];
+        return YES;
+    }
     if ([target isEqualToString:@"accountcheck"]) {
         NSString *expectedId = [TKSession sharedSession].userId;
         NSString *expectedHandle = [TKSession sharedSession].handle;
@@ -168,6 +192,7 @@ static BOOL TKPressView(UIView *v, NSString *text)
         state[@"version"]=[TKUtils appVersion];
         state[@"historyCount"]=@([TKSettings watchHistory].count);
         state[@"savedCount"]=@([TKSettings savedVideos].count);
+        state[@"favoriteCreators"]=@([TKSettings favoriteCreators].count); state[@"favoriteSounds"]=@([TKSettings favoriteSounds].count); state[@"hiddenCreators"]=@([TKSettings blockedCreators].count); state[@"collections"]=@([TKSettings collections].count); state[@"cleanView"]=@([TKSettings cleanVideo]); state[@"defaultSpeed"]=@([TKSettings defaultPlaybackSpeed]); state[@"sleepExpired"]=@([TKPlaybackClock shared].expired); state[@"sleepRemaining"]=@([TKPlaybackClock shared].remaining);
         if ([top isKindOfClass:[TKFeedViewController class]]) [state addEntriesFromDictionary:[(TKFeedViewController *)top diagnosticState]];
         if ([top isKindOfClass:[TKGridViewController class]]) { TKGridViewController *grid=(TKGridViewController *)top;state[@"gridCount"]=@(grid.videos.count);state[@"loading"]=@(grid.loading); }
         if ([top isKindOfClass:[UITableViewController class]]) { UITableView *table=[(UITableViewController *)top tableView];NSInteger rows=0;for(NSInteger i=0;i<table.numberOfSections;i++)rows+=[table numberOfRowsInSection:i];state[@"rows"]=@(rows);state[@"sections"]=@(table.numberOfSections); }
@@ -308,6 +333,7 @@ static BOOL TKPressView(UIView *v, NSString *text)
         else if ([type isEqualToString:@"hold"]) [cell simulateLongPress];
         else if ([type isEqualToString:@"scrub"]) [cell simulateScrubTo:(CGFloat)[params[@"f"] doubleValue]];
         else if ([type isEqualToString:@"comments"]) [cell.delegate videoCellDidTapComments:cell];
+        else if ([type isEqualToString:@"tap"]) [cell simulateTap];
         if (cell) TKLog(@"Gesture %@ done: %@ at %.1f / %.1f s, rate %.2f, 2x %d, saved %d | %@", type, cell.video.videoId, cell.currentTime, cell.duration,
                         [cell playerRate], cell.fastPlayback, [TKSettings isSaved:cell.video.videoId], [cell debugPhotoState]);
         return YES;

@@ -7,11 +7,13 @@
 #import "TKUtils.h"
 #import "TKCommon.h"
 #import "TKVideoLibrary.h"
+#import "TKCollectionsViewController.h"
 
 @interface TKSavedViewController () <UISearchBarDelegate, UIAlertViewDelegate>
 @property (nonatomic, strong) NSArray *saved;
 @property (nonatomic, strong) UISearchBar *searchBar;
 @property (nonatomic) BOOL history;
+@property (nonatomic, copy) NSString *collectionId;
 @end
 
 @implementation TKSavedViewController
@@ -22,14 +24,19 @@
     if ((self = [super initWithStyle:UITableViewStylePlain])) _history = history;
     return self;
 }
+- (instancetype)initWithCollection:(NSString *)collectionId title:(NSString *)title
+{
+    if ((self=[self initWithHistory:NO])) { _collectionId=[collectionId copy]; self.title=title; }
+    return self;
+}
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    self.title = self.history ? L(@"Watch history") : L(@"Saved");
+    if (!self.collectionId) self.title = self.history ? L(@"Watch history") : L(@"Saved");
     [[TKTheme shared] applyToTableView:self.tableView];
     self.tableView.rowHeight = 92;
-    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
+    if (!self.collectionId) self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
     if (self.history) self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:L(@"Clear") style:UIBarButtonItemStyleBordered target:self action:@selector(askToClear)];
     self.searchBar = [[UISearchBar alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
     self.searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
@@ -40,6 +47,7 @@
     [[TKTheme shared] applyToSearchBar:self.searchBar];
     self.tableView.tableHeaderView = self.searchBar;
     self.tableView.accessibilityLabel = self.title;
+    [self.tableView addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)]];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reload) name:TKLibraryDidChangeNotification object:nil];
 }
 
@@ -48,7 +56,8 @@
 - (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [self reload]; }
 - (void)reload
 {
-    self.saved = [TKVideoLibrary videos:(self.history ? [TKSettings watchHistory] : [TKSettings savedVideos]) matching:self.searchBar.text];
+    NSArray *source=self.collectionId ? [TKSettings videosInCollection:self.collectionId] : (self.history ? [TKSettings watchHistory] : [TKSettings savedVideos]);
+    self.saved = [TKVideoLibrary videos:source matching:self.searchBar.text];
     self.navigationItem.rightBarButtonItem.enabled = [TKSettings watchHistory].count > 0;
     [self.tableView reloadData];
 }
@@ -56,6 +65,13 @@
 - (void)searchBar:(UISearchBar *)bar textDidChange:(NSString *)text { [self reload]; }
 - (void)searchBarSearchButtonClicked:(UISearchBar *)bar { [bar resignFirstResponder]; }
 - (void)scrollViewWillBeginDragging:(UIScrollView *)view { [self.searchBar resignFirstResponder]; }
+- (void)held:(UILongPressGestureRecognizer *)g
+{
+    if(g.state!=UIGestureRecognizerStateBegan)return;
+    NSIndexPath *ip=[self.tableView indexPathForRowAtPoint:[g locationInView:self.tableView]]; if(!ip)return;
+    [self.searchBar resignFirstResponder];
+    [TKCollectionPicker addVideo:self.saved[(NSUInteger)ip.row] inView:self.view completion:nil];
+}
 - (void)askToClear
 {
     [self.searchBar resignFirstResponder];
@@ -70,6 +86,7 @@
 
 - (NSString *)footerText
 {
+    if(self.collectionId) return self.saved.count ? L(@"Swipe to remove a post from this collection. It stays in Saved. Hold a post to add it to another collection.") : L(@"Add posts from a video’s menu or hold a post in Saved.");
     if (self.saved.count) return self.history ? L(@"The last 200 watched posts are kept only on this device.") : nil;
     if ([self.searchBar.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length) return L(@"No matching posts.");
     return self.history ? L(@"Posts appear here after you watch them. History stays on this device.") : L(@"Tap the star on a video to keep it here.");
@@ -143,7 +160,8 @@
 {
     if (style == UITableViewCellEditingStyleDelete) {
         NSString *vid = TKStr(self.saved[(NSUInteger)ip.row][@"id"]);
-        if (self.history) [TKSettings removeFromWatchHistory:vid];
+        if (self.collectionId) [TKSettings removeVideo:vid fromCollection:self.collectionId];
+        else if (self.history) [TKSettings removeFromWatchHistory:vid];
         else [TKSettings unsaveVideo:vid];
         [self reload];
     }

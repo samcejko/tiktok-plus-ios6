@@ -26,12 +26,15 @@
 #import "TKModern.h"
 #import "TKCommon.h"
 #import "TKActionSheet.h"
+#import "TKFavoritesViewController.h"
+#import "TKCollectionsViewController.h"
+#import "TKPlaybackClock.h"
 
 enum { TKSheetMenu = 1, TKSheetVideo = 2, TKSheetSpeed = 3, TKSheetFeed = 4 };
 // The video's hold menu: what each of its buttons does (which buttons there are depends on the iOS and on what is
 // installed, so the sheet keeps a list of these in button order)
-enum { TKVideoMenuSpeed, TKVideoMenuNotInterested, TKVideoMenuLike, TKVideoMenuCopyLink, TKVideoMenuSafari, TKVideoMenuSurfari, TKVideoMenuShare, TKVideoMenuCaptions };
-enum { TKMenuMute, TKMenuSwitchFeed, TKMenuNotifications, TKMenuLiked, TKMenuProfile, TKMenuSaved, TKMenuHistory, TKMenuLive, TKMenuTaste, TKMenuLink, TKMenuRefresh, TKMenuSettings };
+enum { TKVideoMenuSpeed, TKVideoMenuControls, TKVideoMenuOrganize, TKVideoMenuBlock, TKVideoMenuCopyCaption, TKVideoMenuInfo, TKVideoMenuNotInterested, TKVideoMenuLike, TKVideoMenuCopyLink, TKVideoMenuSafari, TKVideoMenuSurfari, TKVideoMenuShare, TKVideoMenuCaptions };
+enum { TKMenuMute, TKMenuSwitchFeed, TKMenuNotifications, TKMenuLiked, TKMenuProfile, TKMenuSaved, TKMenuHistory, TKMenuLibrary, TKMenuSleep, TKMenuLive, TKMenuTaste, TKMenuLink, TKMenuRefresh, TKMenuSettings };
 
 // Auto-advance without anyone touching the screen: the first few moves still teach (mildly), later ones are
 // probably an unattended iPad and teach nothing, and after a few more the feed stops moving on and just loops.
@@ -85,6 +88,8 @@ static const NSInteger TKAutoAdvancesMax = 5;
 @property (nonatomic) BOOL speedWhenMenuGone;
 @property (nonatomic) BOOL feedWhenMenuGone;
 @property (nonatomic, copy) NSString *menuVideoId;
+@property (nonatomic) NSInteger submenuWhenGone;
+@property (nonatomic, strong) NSArray *filterState;
 @property (nonatomic) NSInteger autoAdvanceStreak;        // moves on by itself since the viewer last did anything
 @property (nonatomic) BOOL autoAdvancing;                 // the page change under way is one of those
 @property (nonatomic) BOOL pageAnimating;                 // advance's scroll is under way
@@ -198,6 +203,9 @@ static const NSInteger TKAutoAdvancesMax = 5;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(livePlaybackChanged:) name:TKLivePlaybackNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appBecameActive) name:UIApplicationDidBecomeActiveNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(sessionChanged) name:TKSessionDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(sleepChanged) name:TKPlaybackClockDidChange object:nil];
+    self.filterState=[self currentFilterState];
+    [self settingsChanged];
 }
 
 - (NSString *)currentFeedTitle
@@ -218,7 +226,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 - (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; }
 
 // A landscape iPad shows the comments of the page on screen in a panel beside the feed
-- (BOOL)wantsPanel { return TKIsPad() && self.view.bounds.size.width > self.view.bounds.size.height; }
+- (BOOL)wantsPanel { return ![TKSettings cleanVideo] && TKIsPad() && self.view.bounds.size.width > self.view.bounds.size.height; }
 
 - (void)ensurePanel
 {
@@ -319,6 +327,8 @@ static const NSInteger TKAutoAdvancesMax = 5;
 
 - (void)appBecameActive
 {
+    [[TKPlaybackClock shared] check];
+    if([TKPlaybackClock shared].expired) { [self sleepChanged]; return; }
     if (self.visible && !self.pausedForLive) [[self cellAt:self.currentIndex] wakeUp];
 }
 
@@ -370,14 +380,30 @@ static const NSInteger TKAutoAdvancesMax = 5;
 
 - (void)libraryChanged
 {
-    if (!self.fixedMode && self.appeared && [self count] == 0 && !self.feed.loading) [self loadFeed];
+    for(NSNumber *key in self.cells) { TKVideoCell *cell=self.cells[key]; [cell updateSavedState:[TKSettings isSaved:cell.video.videoId]]; }
 }
 
 // the server address was just set: the empty feed can start now; captions turned on or off
 - (void)settingsChanged
 {
-    for (NSNumber *k in self.cells) [self.cells[k] captionsSettingChanged];
+    for (NSNumber *k in self.cells) { [self.cells[k] captionsSettingChanged]; [self.cells[k] setCleanMode:[TKSettings cleanVideo]]; }
+    self.titleLabel.alpha=[TKSettings cleanVideo] ? 0 : 1;
+    self.searchButton.alpha=[TKSettings cleanVideo] ? 0 : 1;
+    [self.view setNeedsLayout];
+    NSArray *state=[self currentFilterState];
+    if(!self.fixedMode && ![self.filterState isEqual:state]) {
+        self.filterState=state; [self removeAllCells]; self.currentIndex=0;
+        self.feed=self.feedMode==0 ? (id)[[TKFeed alloc] init] : [[TKPersonalFeed alloc] initWithFollowingMode:self.feedMode==2];
+        if(self.appeared)[self loadFeed]; return;
+    }
     if (!self.fixedMode && self.appeared && [self count] == 0 && !self.feed.loading && [TKTikTok configured]) [self loadFeed];
+}
+- (NSArray *)currentFilterState { return @[[TKSettings blockedCreators],[TKSettings hiddenKeywords],@([TKSettings hidePhotoPosts]),@([TKSettings maxVideoDuration])]; }
+- (void)sleepChanged
+{
+    if(![TKPlaybackClock shared].expired)return;
+    for(NSNumber *key in self.cells)[self.cells[key] pausePlayback];
+    if(self.visible)[[self currentCell] showToast:L(@"Sleep timer ended. Tap to play again.")];
 }
 
 #pragma mark - Cell window
@@ -417,7 +443,9 @@ static const NSInteger TKAutoAdvancesMax = 5;
 
 - (void)setActiveIndex:(NSInteger)index
 {
-    for (NSNumber *k in self.cells) [self.cells[k] setActive:(k.integerValue == index)];
+    BOOL allowed=![TKPlaybackClock shared].expired;
+    for (NSNumber *k in self.cells) [self.cells[k] setActive:(allowed && k.integerValue == index)];
+    if(!allowed)return;
     [self prepareIndex:index play:YES];
     [self prepareIndex:index + 1 play:NO];   // buffer the next one, so the swipe starts at once
     if (self.panel && !self.panelNav.view.hidden) [self.panel showVideo:[self videoAt:index]];
@@ -454,7 +482,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView { [self pageSettled]; }
 - (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView { [self pageSettled]; }
 
-- (void)viewerIsHere { self.autoAdvanceStreak = 0; }
+- (void)viewerIsHere { self.autoAdvanceStreak = 0; if([TKPlaybackClock shared].expired)[[TKPlaybackClock shared] cancel]; }
 
 - (void)pageSettled
 {
@@ -681,6 +709,9 @@ static const NSInteger TKAutoAdvancesMax = 5;
         [sheet addButtonWithTitle:[NSString stringWithFormat:L(@"Playback speed: %@×"), [NSString stringWithFormat:@"%g", cell.selectedPlaybackSpeed]]];
         [actions addObject:@(TKVideoMenuSpeed)];
     }
+    [sheet addButtonWithTitle:L(@"Playback controls")]; [actions addObject:@(TKVideoMenuControls)];
+    [sheet addButtonWithTitle:L(@"Save and organize")]; [actions addObject:@(TKVideoMenuOrganize)];
+    if(cell.video.author.length) { [sheet addButtonWithTitle:L(@"Hide this creator")]; [actions addObject:@(TKVideoMenuBlock)]; }
     if ([TKSession sharedSession].signedIn && [TKSettings allowAccountWrites]) {
         [sheet addButtonWithTitle:L(@"Like on TikTok")];
         [actions addObject:@(TKVideoMenuLike)];
@@ -689,6 +720,8 @@ static const NSInteger TKAutoAdvancesMax = 5;
     [actions addObject:@(TKVideoMenuNotInterested)];
     [sheet addButtonWithTitle:L(@"Copy link")];
     [actions addObject:@(TKVideoMenuCopyLink)];
+    [sheet addButtonWithTitle:L(@"Copy caption")]; [actions addObject:@(TKVideoMenuCopyCaption)];
+    [sheet addButtonWithTitle:L(@"Post details")]; [actions addObject:@(TKVideoMenuInfo)];
     [sheet addButtonWithTitle:L(@"Open in Safari")];
     [actions addObject:@(TKVideoMenuSafari)];
     // iOS 6: Surfari too, when it is installed (the browsers side by side, no second sheet); iOS 7 and newer: the
@@ -709,6 +742,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     self.videoMenuActions = actions;
     self.shareWhenMenuGone = NO;
     self.speedWhenMenuGone = NO;
+    self.submenuWhenGone=0;
     if (TKIsPad()) [sheet showFromRect:CGRectMake(point.x - 1, point.y - 1, 2, 2) inView:cell animated:YES];
     else [sheet showInView:self.view];
 }
@@ -720,6 +754,11 @@ static const NSInteger TKAutoAdvancesMax = 5;
     if (!cell || !v || index < 0 || index >= (NSInteger)self.videoMenuActions.count) return;
     NSURL *link = [NSURL URLWithString:[v shareURL]];
     switch ([self.videoMenuActions[(NSUInteger)index] integerValue]) {
+        case TKVideoMenuControls: self.submenuWhenGone=1; break;
+        case TKVideoMenuOrganize: self.submenuWhenGone=2; break;
+        case TKVideoMenuBlock: self.submenuWhenGone=3; break;
+        case TKVideoMenuInfo: self.submenuWhenGone=4; break;
+        case TKVideoMenuCopyCaption: [UIPasteboard generalPasteboard].string=v.desc ?: @""; [cell showToast:L(@"Caption copied")]; break;
         case TKVideoMenuSpeed: {
             self.speedWhenMenuGone = YES;
             break;
@@ -768,6 +807,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
 // The hold menu has gone: the share sheet it asked for (iOS 7 and newer) comes now
 - (void)actionSheet:(UIActionSheet *)sheet didDismissWithButtonIndex:(NSInteger)index
 {
+    if(self.submenuWhenGone && (sheet.tag==TKSheetVideo || sheet.tag==TKSheetMenu)) { NSInteger action=self.submenuWhenGone; self.submenuWhenGone=0; [self showSubmenu:action]; return; }
     if (sheet.tag == TKSheetMenu && self.feedWhenMenuGone) {
         self.feedWhenMenuGone = NO;
         [self chooseFeed]; return;
@@ -797,6 +837,60 @@ static const NSInteger TKAutoAdvancesMax = 5;
     else [sheet showInView:self.view];
 }
 
+- (void)showSubmenu:(NSInteger)action
+{
+    if(action==5) {
+        [TKActionSheet options:@[L(@"Saved"),L(@"Watch history"),L(@"Collections"),L(@"Favorite creators"),L(@"Favorite sounds"),L(@"Hidden creators")] title:L(@"Library") inView:self.view selection:^(NSInteger i){
+            if(i==0)[self openSaved];
+            else if(i==1)[self present:[[TKSavedViewController alloc] initWithHistory:YES]];
+            else if(i==2)[self present:[[TKCollectionsViewController alloc] init]];
+            else [self present:[[TKFavoritesViewController alloc] initWithKind:i==3 ? @"creators" : (i==4 ? @"sounds" : @"blocked")]];
+        }]; return;
+    }
+    if(action==6) {
+        TKPlaybackClock *clock=[TKPlaybackClock shared]; BOOL wasExpired=clock.expired;
+        NSString *title=clock.remaining>0 ? [NSString stringWithFormat:L(@"Sleep timer: %ld min"),(long)ceil(clock.remaining/60)] : L(@"Sleep timer");
+        [TKActionSheet options:@[L(@"15 min"),L(@"30 min"),L(@"60 min"),L(@"90 min"),L(@"Turn off timer")] title:title inView:self.view selection:^(NSInteger i){
+            [clock startForSeconds:[@[@900,@1800,@3600,@5400,@0][(NSUInteger)i] doubleValue]];
+            if(wasExpired)[self setActiveIndex:self.currentIndex];
+            [[self currentCell] showToast:i==4 ? L(@"Sleep timer off") : L(@"Sleep timer set")];
+        }]; return;
+    }
+    TKVideoCell *cell=self.menuCell; TKVideo *v=cell.video;
+    if(!cell || cell!=[self currentCell] || ![v.videoId isEqual:self.menuVideoId])return;
+    if(action==1) {
+        [TKActionSheet options:@[L(@"Back 10 seconds"),L(@"Forward 10 seconds"),L(@"Restart post"),[TKSettings cleanVideo] ? L(@"Show controls") : L(@"Clean view")] title:L(@"Playback controls") inView:self.view selection:^(NSInteger i){
+            if(cell!=[self currentCell] || ![cell.video.videoId isEqual:v.videoId])return;
+            if(i==3) { [TKSettings setCleanVideo:![TKSettings cleanVideo]]; return; }
+            BOOL ok=i==2 ? [cell restartPlayback] : [cell seekBy:i==0 ? -10 : 10];
+            if(!ok)[cell showToast:L(@"This control is unavailable for this post.")];
+        }];
+    } else if(action==2) {
+        NSMutableArray *titles=[NSMutableArray arrayWithArray:@[[TKSettings isSaved:v.videoId] ? L(@"Remove saved post") : L(@"Save post"),L(@"Add to collection"),L(@"Watch later"),[TKSettings isFavoriteCreator:v.author] ? L(@"Remove favorite creator") : L(@"Favorite creator")]];
+        if(v.musicId.length)[titles addObject:[TKSettings isFavoriteSound:v.musicId] ? L(@"Remove favorite sound") : L(@"Favorite sound")];
+        [TKActionSheet options:titles title:L(@"Save and organize") inView:self.view selection:^(NSInteger i){
+            if(i==0) { if([TKSettings isSaved:v.videoId])[TKSettings unsaveVideo:v.videoId]; else [TKSettings saveVideoJSON:[v toJSON]]; [cell updateSavedState:[TKSettings isSaved:v.videoId]]; }
+            else if(i==1) [TKCollectionPicker addVideo:[v toJSON] inView:self.view completion:^(BOOL saved){ if(saved)[cell showToast:L(@"Added to collection")]; }];
+            else if(i==2) { NSString *cid=[TKSettings watchLaterCollectionId]; if(cid) { [TKSettings addVideo:[v toJSON] toCollection:cid]; [cell showToast:L(@"Added to Watch later")]; } else [cell showToast:L(@"Collection not saved")]; }
+            else if(i==3) {
+                if([TKSettings isFavoriteCreator:v.author])[TKSettings removeFavoriteCreator:v.author];
+                else [TKSettings saveFavoriteCreator:@{@"handle":v.author ?: @"",@"name":v.authorName ?: @"",@"avatar":v.authorAvatarURL ?: @""}];
+                [cell showToast:L(@"Favorites updated")];
+            } else if(i==4) {
+                if([TKSettings isFavoriteSound:v.musicId])[TKSettings removeFavoriteSound:v.musicId];
+                else [TKSettings saveFavoriteSound:@{@"id":v.musicId,@"name":v.music ?: @"",@"author":v.musicAuthor ?: @"",@"cover":v.musicCoverURL ?: @""}];
+                [cell showToast:L(@"Favorites updated")];
+            }
+        }];
+    } else if(action==3) {
+        [TKActionSheet options:@[L(@"Hide this creator")] title:L(@"This creator will be hidden from feeds on this device. Your TikTok follow status will not change.") inView:self.view selection:^(NSInteger i){ [TKSettings setCreator:v.author blocked:YES]; }];
+    } else if(action==4) {
+        NSString *date=v.createdAt>0 ? [NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:v.createdAt] dateStyle:NSDateFormatterMediumStyle timeStyle:NSDateFormatterShortStyle] : L(@"Unknown");
+        NSString *detail=[NSString stringWithFormat:L(@"@%@\nPosted: %@\nDuration: %ld s\nViews: %@\nLikes: %@\nComments: %@\n\n%@"),v.author ?: @"",date,(long)v.durationSeconds,[TKUtils formatBigCount:v.plays],[TKUtils formatBigCount:v.likes],[TKUtils formatBigCount:v.commentCount],v.desc ?: @""];
+        [TKUtils alertWithTitle:L(@"Post details") message:detail];
+    }
+}
+
 - (void)chooseFeed
 {
     if (self.fixedMode || ![TKSession sharedSession].signedIn) return;
@@ -816,6 +910,7 @@ static const NSInteger TKAutoAdvancesMax = 5;
     UIActionSheet *sheet = [[TKActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     sheet.tag = TKSheetMenu;
     self.feedWhenMenuGone = NO;
+    self.submenuWhenGone=0;
     NSMutableArray *actions = [NSMutableArray array];
 
     [sheet addButtonWithTitle:self.muted ? L(@"Unmute") : L(@"Mute")];
@@ -837,6 +932,8 @@ static const NSInteger TKAutoAdvancesMax = 5;
 
     [sheet addButtonWithTitle:L(@"Watch history")];
     [actions addObject:@(TKMenuHistory)];
+    [sheet addButtonWithTitle:L(@"Library")]; [actions addObject:@(TKMenuLibrary)];
+    [sheet addButtonWithTitle:L(@"Sleep timer")]; [actions addObject:@(TKMenuSleep)];
 
     [sheet addButtonWithTitle:L(@"Live now")];
     [actions addObject:@(TKMenuLive)];
@@ -904,6 +1001,8 @@ static const NSInteger TKAutoAdvancesMax = 5;
                 break;
             case TKMenuSaved: [self openSaved]; break;
             case TKMenuHistory: [self present:[[TKSavedViewController alloc] initWithHistory:YES]]; break;
+            case TKMenuLibrary: self.submenuWhenGone=5; break;
+            case TKMenuSleep: self.submenuWhenGone=6; break;
             case TKMenuLive: [self present:[[TKLivesViewController alloc] init]]; break;
             case TKMenuTaste: [self present:[[TKTasteViewController alloc] init]]; break;
             case TKMenuLink: [self askForLink]; break;

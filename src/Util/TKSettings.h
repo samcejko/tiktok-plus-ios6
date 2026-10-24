@@ -62,6 +62,38 @@
 + (void)removeFromWatchHistory:(NSString *)videoId;
 + (void)clearWatchHistory;
 
++ (NSArray *)favoriteCreators;
++ (NSArray *)favoriteSounds;
++ (BOOL)isFavoriteCreator:(NSString *)handle;
++ (BOOL)isFavoriteSound:(NSString *)soundId;
++ (void)saveFavoriteCreator:(NSDictionary *)creator;
++ (void)removeFavoriteCreator:(NSString *)handle;
++ (void)saveFavoriteSound:(NSDictionary *)sound;
++ (void)removeFavoriteSound:(NSString *)soundId;
++ (NSArray *)blockedCreators;
++ (void)setCreator:(NSString *)handle blocked:(BOOL)blocked;
++ (NSArray *)hiddenKeywords;
++ (void)setHiddenKeywords:(NSString *)text;
++ (BOOL)allowsPost:(NSDictionary *)video;
++ (BOOL)hidePhotoPosts;
++ (void)setHidePhotoPosts:(BOOL)value;
++ (NSInteger)maxVideoDuration;
++ (void)setMaxVideoDuration:(NSInteger)seconds;
++ (float)defaultPlaybackSpeed;
++ (void)setDefaultPlaybackSpeed:(float)speed;
++ (BOOL)cleanVideo;
++ (void)setCleanVideo:(BOOL)value;
+
+// Collections contain references to saved posts. Removing a collection never deletes saved posts.
++ (NSArray *)collections;
++ (NSString *)createCollection:(NSString *)name;
++ (BOOL)renameCollection:(NSString *)collectionId name:(NSString *)name;
++ (void)deleteCollection:(NSString *)collectionId;
++ (NSArray *)videosInCollection:(NSString *)collectionId;
++ (void)addVideo:(NSDictionary *)video toCollection:(NSString *)collectionId;
++ (void)removeVideo:(NSString *)videoId fromCollection:(NSString *)collectionId;
++ (NSString *)watchLaterCollectionId;
+
 // Videos already shown (the feed does not bring them back; the taste itself lives in TKTaste)
 + (BOOL)hasSeenVideo:(NSString *)videoId;
 + (void)markVideoSeen:(NSString *)videoId;

@@ -3,6 +3,28 @@
 #include <math.h>
 
 @implementation TKVideoLibrary
++ (NSString *)normalizedHandle:(NSString *)handle
+{
+    NSString *s = [[(TKStr(handle) ?: @"") stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] lowercaseString];
+    if ([s hasPrefix:@"@"]) s = [s substringFromIndex:1];
+    NSMutableCharacterSet *allowed=[[NSCharacterSet alphanumericCharacterSet] mutableCopy]; [allowed addCharactersInString:@"._"];
+    if (!s.length || s.length > 100 || [s rangeOfCharacterFromSet:[allowed invertedSet]].location != NSNotFound) return nil;
+    return s;
+}
++ (NSString *)collectionName:(NSString *)name
+{
+    NSString *s = [TKStr(name) stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (!s.length || s.length > 60 || [s rangeOfCharacterFromSet:[NSCharacterSet controlCharacterSet]].location != NSNotFound) return nil;
+    return s;
+}
++ (BOOL)video:(NSDictionary *)video blockedByCreators:(NSArray *)creators keywords:(NSArray *)keywords hidePhotos:(BOOL)photos maxDuration:(NSInteger)seconds
+{
+    if ([creators containsObject:[self normalizedHandle:TKStr(video[@"author"])] ?: @""]) return YES;
+    if (photos && [TKStr(video[@"type"]) isEqual:@"photo"]) return YES;
+    if (seconds > 0 && TKDbl(video[@"duration"]) > seconds) return YES;
+    for (NSString *keyword in keywords) if (keyword.length && [self videos:@[video] matching:keyword].count) return YES;
+    return NO;
+}
 + (NSDictionary *)metadata:(NSDictionary *)video
 {
     if (![video isKindOfClass:[NSDictionary class]]) return nil;

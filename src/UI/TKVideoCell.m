@@ -9,6 +9,7 @@
 #import "TKUtils.h"
 #import "TKModern.h"
 #import "TKCommon.h"
+#import "TKPlaybackClock.h"
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
 
@@ -356,7 +357,7 @@ static FourCharCode TKFourCC(const char *s)
     [self teardownPlayer];
     [self tearDownPhotos];
     self.video = video;
-    self.playbackRate = 1.0f;
+    self.playbackRate = video.isPhoto ? 1.0f : [TKSettings defaultPlaybackSpeed];
     self.historySeconds = 0;
     self.historyRecorded = NO;
     self.usingServerProxy = [TKSettings streamThroughServer];
@@ -387,6 +388,7 @@ static FourCharCode TKFourCC(const char *s)
     self.authorButton.hidden = !video.author.length;
     self.coverView.hidden = NO;
     [self.coverView setImageURL:video.coverURL placeholder:nil];
+    [self setCleanMode:[TKSettings cleanVideo]];
     self.progressBar.frame = CGRectZero;
     [self setNeedsLayout];
 }
@@ -494,6 +496,7 @@ static FourCharCode TKFourCC(const char *s)
 
 - (void)resume
 {
+    if ([TKPlaybackClock shared].expired) return;
     if (self.player) self.player.rate = self.playbackRate;    // (-play would reset a 2x speed)
     if (self.player || [self isPhotoPost]) self.playing = YES;
     if ([self isPhotoPost]) [self startPhotoTimer];
@@ -654,6 +657,7 @@ static FourCharCode TKFourCC(const char *s)
     TKMain(^{
         if (object != self.item) return;      // the last word of an item already torn down
         if (self.item.status == AVPlayerItemStatusReadyToPlay) {
+            if (![self isPhotoPost] && ![self setPlaybackSpeed:self.playbackRate]) self.playbackRate=1;
             [self checkVideoCodec];
             [self applyVolume];
             if (self.playerLayer) {
@@ -758,6 +762,7 @@ static FourCharCode TKFourCC(const char *s)
 
 - (void)stallCheck
 {
+    if([TKPlaybackClock shared].expired) { [self pausePlayback]; return; }
     if (!self.active || !self.playing || !self.player) { [self stopStallWatch]; return; }
     if (self.scrubbing) return;
     if (self.item.playbackLikelyToKeepUp || self.item.playbackBufferFull) {
@@ -777,6 +782,7 @@ static FourCharCode TKFourCC(const char *s)
 // again on another port (the player's URL is void then)
 - (void)wakeUp
 {
+    if([TKPlaybackClock shared].expired) { [self pausePlayback]; return; }
     if (!self.active || [self isPhotoPost] || !self.player) return;
     if (self.proxyGeneration != [TKMediaProxy shared].generation || self.item.status == AVPlayerItemStatusFailed) {
         TKLog(@"video %@: the player's address went away, starting it again", self.video.videoId);
@@ -813,6 +819,30 @@ static FourCharCode TKFourCC(const char *s)
 }
 
 - (float)playerRate { return self.player.rate; }
+
+- (BOOL)seekBy:(NSTimeInterval)seconds
+{
+    if ([self isPhotoPost] || self.item.status!=AVPlayerItemStatusReadyToPlay || !isfinite(seconds)) return NO;
+    NSTimeInterval target=MAX(0,MIN(MAX(0,self.duration-0.1),self.currentTime+seconds));
+    self.lastTickTime=-1;
+    [self seekPlayerTo:CMTimeMakeWithSeconds(target,600) tolerance:kCMTimeZero];
+    return YES;
+}
+- (BOOL)restartPlayback
+{
+    if ([self isPhotoPost]) { [self showPhoto:0 animated:NO]; return YES; }
+    return [self seekBy:-self.currentTime];
+}
+- (void)setCleanMode:(BOOL)clean
+{
+    for (UIView *v in @[self.authorLabel,self.authorButton,self.avatarButton,self.liveBadge,self.captionView,self.musicLabel,self.musicButton,self.discButton,self.saveButton,self.saveCountLabel,self.commentsButton,self.commentsCountLabel,self.subtitleLabel]) {
+        v.alpha=clean ? 0 : 1; v.userInteractionEnabled=!clean;
+    }
+}
+- (void)pausePlayback
+{
+    [self.player pause]; self.playing=NO; [self stopPhotoTimer]; [self stopStallWatch]; [self spinDisc:NO];
+}
 
 #pragma mark - Gestures
 
@@ -864,6 +894,7 @@ static FourCharCode TKFourCC(const char *s)
         [self spinDisc:NO];
         [self flashPauseBadge:YES];
     } else {
+        self.active=YES;
         [self resume];
         [self flashPauseBadge:NO];
     }
@@ -965,6 +996,7 @@ static FourCharCode TKFourCC(const char *s)
     [self showSaveBurstAt:CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds))];
     [self.delegate videoCellDidDoubleTap:self];
 }
+- (void)simulateTap { [self togglePlay]; }
 
 - (void)simulateLongPress
 {

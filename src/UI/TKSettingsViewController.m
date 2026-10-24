@@ -14,6 +14,7 @@
 #import "TKTheme.h"
 #import "TKUtils.h"
 #import "TKCommon.h"
+#import "TKViewingSettingsViewController.h"
 
 enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecAbout, SecCount };
 
@@ -47,7 +48,7 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         case SecServer: return 2;
         case SecAccount: return [TKSession sharedSession].signedIn ? 3 : 1;
         case SecFeed: return 3;
-        case SecPlayback: return 3;
+        case SecPlayback: return 4;
         case SecAppearance: return 1;
         case SecData: return 3;
         case SecAbout: return 2;
@@ -145,7 +146,8 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
     } else if (s == SecPlayback) {
         if (r == 0) { cell.textLabel.text = L(@"Start muted"); cell.accessoryView = [self switchOn:[TKSettings startMuted] tag:20]; }
         else if (r == 1) { cell.textLabel.text = L(@"Auto-advance"); cell.accessoryView = [self switchOn:[TKSettings autoAdvance] tag:21]; }
-        else { cell.textLabel.text = L(@"Captions"); cell.accessoryView = [self switchOn:[TKSettings showCaptions] tag:22]; }
+        else if (r==2) { cell.textLabel.text = L(@"Captions"); cell.accessoryView = [self switchOn:[TKSettings showCaptions] tag:22]; }
+        else { cell.textLabel.text=L(@"Content and playback"); cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator; }
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if (s == SecAppearance) {
         cell.textLabel.text = L(@"Dark theme"); cell.accessoryView = [self switchOn:[TKTheme shared].isDark tag:30]; cell.selectionStyle = UITableViewCellSelectionStyleNone;
@@ -214,6 +216,8 @@ enum { SecServer, SecAccount, SecFeed, SecPlayback, SecAppearance, SecData, SecA
         UIViewController *next = r == 0 ? [[TKLanguagesViewController alloc] init]
                                : r == 1 ? (UIViewController *)[[TKTopicsViewController alloc] init] : [[TKTasteViewController alloc] init];
         [self.navigationController pushViewController:next animated:YES];
+    } else if (s == SecPlayback && r == 3) {
+        [self.navigationController pushViewController:[[TKViewingSettingsViewController alloc] init] animated:YES];
     } else if (s == SecData && r == 0) {
         [[TKImageLoader shared] clearMemory];
         [[TKImageLoader shared] clearDiskWithCompletion:^{ [TKUtils alertWithTitle:nil message:L(@"Image cache cleared.")]; }];

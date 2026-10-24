@@ -3,6 +3,7 @@
 #import "TKFeed.h"
 #import "TKCommon.h"
 #import "TKHTTP.h"
+#import "TKSettings.h"
 
 @interface TKPersonalFeed ()
 @property (nonatomic, strong) NSMutableArray *mutableVideos;
@@ -46,6 +47,8 @@
         if (generation != self.generation) return;
         self.task=nil;
         self.loading = NO;
+        videos=[videos filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(TKVideo *v,NSDictionary *bindings){ return [TKSettings allowsPost:[v toJSON]]; }]];
+        if(!videos.count && !error)error=TKMakeError(TKErrorAPI,L(@"No videos match your feed filters."));
         if (videos.count > 0) {
             [self.mutableVideos removeAllObjects];
             [self.mutableVideos addObjectsFromArray:videos];
@@ -76,6 +79,7 @@
         if (generation != self.generation) return;
         self.task=nil;
         self.loading = NO;
+        videos=[videos filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(TKVideo *v,NSDictionary *bindings){ return [TKSettings allowsPost:[v toJSON]]; }]];
         if (videos.count > 0) {
             NSMutableSet *existingIds = [NSMutableSet set];
             for (TKVideo *v in self.mutableVideos) {

@@ -26,7 +26,7 @@ static const CGFloat TKStatsHeight = 52;
 @property (nonatomic, strong) NSArray *captionLabels;
 @property (nonatomic, strong) NSArray *dividers;          // etched: a dark and a light line each
 @property (nonatomic, strong) UIButton *liveButton;
-@property (nonatomic, strong) UIButton *followButton;
+@property (nonatomic, strong) UIButton *favoriteButton;
 @property (nonatomic, strong) TKLinkLabel *bioLabel;      // (the web links in the bio open on a tap)
 @property (nonatomic, strong) UIButton *linkButton;
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply;
@@ -89,15 +89,15 @@ static const CGFloat TKStatsHeight = 52;
         [_liveButton setTitle:[@"●  " stringByAppendingString:L(@"Watch live")] forState:UIControlStateNormal];
         [self addSubview:_liveButton];
 
-        _followButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        _followButton.titleLabel.font = [UIFont boldSystemFontOfSize:15];
-        [_followButton setBackgroundImage:[theme buttonImageHighlighted:NO] forState:UIControlStateNormal];
-        [_followButton setBackgroundImage:[theme buttonImageHighlighted:YES] forState:UIControlStateHighlighted];
-        [_followButton setTitleColor:[theme primaryTextColor] forState:UIControlStateNormal];
-        [theme embossButton:_followButton];
-        [_followButton setTitle:L(@"Follow") forState:UIControlStateNormal];
-        _followButton.hidden = YES;
-        [self addSubview:_followButton];
+        _favoriteButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        _favoriteButton.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+        [_favoriteButton setBackgroundImage:[theme buttonImageHighlighted:NO] forState:UIControlStateNormal];
+        [_favoriteButton setBackgroundImage:[theme buttonImageHighlighted:YES] forState:UIControlStateHighlighted];
+        [_favoriteButton setTitleColor:[theme primaryTextColor] forState:UIControlStateNormal];
+        [theme embossButton:_favoriteButton];
+        [_favoriteButton setTitle:L(@"Follow") forState:UIControlStateNormal];
+        _favoriteButton.hidden = YES;
+        [self addSubview:_favoriteButton];
 
         _bioLabel = [[TKLinkLabel alloc] initWithFrame:CGRectZero];
         _bioLabel.font = [UIFont systemFontOfSize:14];
@@ -133,8 +133,8 @@ static const CGFloat TKStatsHeight = 52;
     NSArray *counts = @[ @(p.following), @(p.followers), @(p.likes) ];
     for (NSUInteger i = 0; i < 3; i++) [self.valueLabels[i] setText:[TKUtils formatBigCount:[counts[i] longLongValue]]];
     self.liveButton.hidden = !p.liveRoom.length;
-    BOOL isMe = [TKSession sharedSession].signedIn && [p.handle isEqualToString:[TKSession sharedSession].handle];
-    self.followButton.hidden = ![TKSettings allowAccountWrites] || ![TKSession sharedSession].signedIn || isMe;
+    self.favoriteButton.hidden = NO;
+    [self.favoriteButton setTitle:[L(@"Favorite creator") stringByAppendingString:[TKSettings isFavoriteCreator:p.handle] ? @" ✓" : @""] forState:UIControlStateNormal];
     self.bioLabel.text = p.bio.length ? [TKUtils displayText:p.bio] : @"";
     NSString *link = [p.link stringByReplacingOccurrencesOfString:@"https://" withString:@""];
     link = [link stringByReplacingOccurrencesOfString:@"http://" withString:@""];
@@ -170,12 +170,12 @@ static const CGFloat TKStatsHeight = 52;
     }
     y += TKStatsHeight + 14;
     BOOL showLive = !self.liveButton.hidden;
-    BOOL showFollow = !self.followButton.hidden;
+    BOOL showFollow = !self.favoriteButton.hidden;
     if (showLive && showFollow) {
         CGFloat bw = 135;
         CGFloat startX = floorf((w - (bw * 2 + 12)) / 2);
         if (apply) {
-            self.followButton.frame = CGRectMake(startX, y, bw, 38);
+            self.favoriteButton.frame = CGRectMake(startX, y, bw, 38);
             self.liveButton.frame = CGRectMake(startX + bw + 12, y, bw, 38);
         }
         y += 38 + 12;
@@ -183,7 +183,7 @@ static const CGFloat TKStatsHeight = 52;
         if (apply) self.liveButton.frame = CGRectMake(floorf((w - 220) / 2), y, 220, 38);
         y += 38 + 12;
     } else if (showFollow) {
-        if (apply) self.followButton.frame = CGRectMake(floorf((w - 220) / 2), y, 220, 38);
+        if (apply) self.favoriteButton.frame = CGRectMake(floorf((w - 220) / 2), y, 220, 38);
         y += 38 + 12;
     }
     if (self.bioLabel.text.length) {
@@ -233,6 +233,7 @@ static const CGFloat TKStatsHeight = 52;
     self.title = [@"@" stringByAppendingString:self.handle];
     [super viewDidLoad];
 }
+- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; self.header.profile=self.profile; [self headerChanged]; }
 
 - (TKHTTPTask *)fetchPageAfterFirst:(BOOL)more completion:(void (^)(NSArray *, BOOL, NSError *))completion
 {
@@ -258,30 +259,19 @@ static const CGFloat TKStatsHeight = 52;
     if (!self.header) {
         self.header = [[TKProfileHeaderView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 300)];
         [self.header.liveButton addTarget:self action:@selector(openLive) forControlEvents:UIControlEventTouchUpInside];
-        [self.header.followButton addTarget:self action:@selector(toggleFollow) forControlEvents:UIControlEventTouchUpInside];
+        [self.header.favoriteButton addTarget:self action:@selector(toggleFavorite) forControlEvents:UIControlEventTouchUpInside];
         [self.header.linkButton addTarget:self action:@selector(openBioLink) forControlEvents:UIControlEventTouchUpInside];
         self.header.profile = self.profile;
     }
     return self.header;
 }
 
-- (void)toggleFollow
+- (void)toggleFavorite
 {
-    if (![TKSettings allowAccountWrites]) {
-        [TKUtils alertWithTitle:L(@"Actions disabled") message:L(@"Enable 'Allow actions on account' in Settings to follow creators.")];
-        return;
-    }
-    BOOL isFollowing = [self.header.followButton.currentTitle isEqualToString:L(@"Following")];
-    NSInteger type = isFollowing ? 2 : 1;
-    self.header.followButton.enabled = NO;
-    [TKTikTok followUserId:self.profile.userId secUid:self.profile.secUid type:type completion:^(BOOL ok, NSError *error) {
-        self.header.followButton.enabled = YES;
-        if (ok) {
-            [self.header.followButton setTitle:isFollowing ? L(@"Follow") : L(@"Following") forState:UIControlStateNormal];
-        } else {
-            [TKUtils alertWithTitle:L(@"Failed") message:error.localizedDescription ?: L(@"Could not update follow status.")];
-        }
-    }];
+    if ([TKSettings isFavoriteCreator:self.profile.handle]) [TKSettings removeFavoriteCreator:self.profile.handle];
+    else [TKSettings saveFavoriteCreator:@{@"handle":self.profile.handle ?: @"", @"name":self.profile.name ?: @"", @"avatar":self.profile.avatarURL ?: @""}];
+    self.header.profile=self.profile;
+    [self headerChanged];
 }
 
 - (CGFloat)headerHeightForWidth:(CGFloat)width { return [(TKProfileHeaderView *)[self headerView] layoutForWidth:width apply:NO]; }

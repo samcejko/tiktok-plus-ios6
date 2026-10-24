@@ -3,6 +3,18 @@
 #import "TKModern.h"
 #import "TKCommon.h"
 #import <QuartzCore/QuartzCore.h>
+#import <objc/runtime.h>
+
+@interface TKChoiceHandler : NSObject <UIActionSheetDelegate>
+@property (nonatomic, copy) void (^selection)(NSInteger);
+@end
+@implementation TKChoiceHandler
+- (void)actionSheet:(UIActionSheet *)sheet didDismissWithButtonIndex:(NSInteger)index
+{
+    if (index >= 0 && index < sheet.numberOfButtons && index != sheet.cancelButtonIndex && self.selection) self.selection(index);
+    self.selection = nil;
+}
+@end
 
 @interface TKActionSheet ()
 @property (nonatomic) BOOL classicVisible;
@@ -15,13 +27,26 @@
 @end
 
 @implementation TKActionSheet
-- (BOOL)isVisible { return TKModernIOS() ? self.classicVisible : [super isVisible]; }
+- (BOOL)usesClassicSheet { return TKModernIOS() || self.numberOfButtons > 9; }
++ (void)options:(NSArray *)options title:(NSString *)title inView:(UIView *)view selection:(void (^)(NSInteger))selection
+{
+    if (!options.count || !view.window) return;
+    TKChoiceHandler *handler = [[TKChoiceHandler alloc] init];
+    handler.selection = selection;
+    TKActionSheet *sheet = [[self alloc] initWithTitle:title delegate:handler cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    objc_setAssociatedObject(sheet, @selector(options:title:inView:selection:), handler, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    for (NSString *option in options) [sheet addButtonWithTitle:option];
+    sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
+    if (TKIsPad()) [sheet showFromRect:CGRectMake(view.bounds.size.width / 2, view.bounds.size.height / 2, 1, 1) inView:view animated:YES];
+    else [sheet showInView:view];
+}
+- (BOOL)isVisible { return [self usesClassicSheet] ? self.classicVisible : [super isVisible]; }
 
 - (void)showInView:(UIView *)view
 {
-    if (!TKModernIOS()) { [super showInView:view]; return; }
+    if (![self usesClassicSheet]) { [super showInView:view]; return; }
     if (self.classicVisible) return;
-    UIView *host = view.window ?: view;
+    UIView *host = TKModernIOS() ? (view.window ?: view) : view;
     for (UIView *sub in [self.subviews copy]) [sub removeFromSuperview];
     self.frame = host.bounds;
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -84,13 +109,13 @@
 
 - (void)showFromRect:(CGRect)rect inView:(UIView *)view animated:(BOOL)animated
 {
-    if (TKModernIOS()) [self showInView:view];
+    if ([self usesClassicSheet]) [self showInView:view];
     else [super showFromRect:rect inView:view animated:animated];
 }
 
 - (void)layoutSubviews
 {
-    if (!TKModernIOS()) { [super layoutSubviews]; return; }
+    if (![self usesClassicSheet]) { [super layoutSubviews]; return; }
     if (!self.classicPanel) return;
     UIEdgeInsets safe = TKSafeAreaInsets(self.superview ?: self);
     CGFloat width = MIN(TKIsPad() ? 360 : 420, self.bounds.size.width - safe.left - safe.right - 16);
@@ -125,7 +150,7 @@
 }
 - (void)dismissWithClickedButtonIndex:(NSInteger)index animated:(BOOL)animated
 {
-    if (!TKModernIOS()) { [super dismissWithClickedButtonIndex:index animated:animated]; return; }
+    if (![self usesClassicSheet]) { [super dismissWithClickedButtonIndex:index animated:animated]; return; }
     if (!self.classicVisible || self.closing) return;
     self.closing = YES;
     if ([self.delegate respondsToSelector:@selector(actionSheet:willDismissWithButtonIndex:)]) [self.delegate actionSheet:self willDismissWithButtonIndex:index];

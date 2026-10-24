@@ -43,6 +43,10 @@
 - (void)captionsSettingChanged;
 - (BOOL)setFastPlayback:(BOOL)fast;         // 2x speed; NO when this video cannot play faster
 - (BOOL)setPlaybackSpeed:(float)speed;     // 0.5, 1, 1.5 or 2; rejects unsupported media
+- (BOOL)seekBy:(NSTimeInterval)seconds;
+- (BOOL)restartPlayback;
+- (void)setCleanMode:(BOOL)clean;
+- (void)pausePlayback;
 - (NSTimeInterval)takeWatchedSeconds;       // real viewing time since the last call (loops add up, seeks do not)
 - (void)updateSavedState:(BOOL)saved;
 - (void)showError:(NSString *)message;
@@ -54,6 +58,7 @@
 - (void)simulateDoubleTap;
 - (void)simulateLongPress;
 - (void)simulateScrubTo:(CGFloat)fraction;
+- (void)simulateTap;
 - (float)playerRate;
 - (NSDictionary *)playbackDiagnostics;
 - (NSString *)debugPhotoState;

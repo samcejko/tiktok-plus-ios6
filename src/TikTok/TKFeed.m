@@ -66,6 +66,7 @@ static double TKFeedRandom(void) { return ((double)arc4random() + 0.5) / 4294967
             for (TKVideo *v in videos) {
                 if (!v.videoId.length || [self.knownIds containsObject:v.videoId] || [TKSettings hasSeenVideo:v.videoId]) continue;
                 if (![TKSettings allowsLanguage:v.lang]) continue;           // languages the viewer turned off
+                if (![TKSettings allowsPost:[v toJSON]]) continue;
                 [self.knownIds addObject:v.videoId];
                 [self.pool addObject:v];
                 added++;
@@ -89,7 +90,7 @@ static double TKFeedRandom(void) { return ((double)arc4random() + 0.5) / 4294967
     NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
     for (NSInteger i = (NSInteger)self.pool.count - 1; i >= 0; i--) {   // a stale URL is not worth re-resolving;
         TKVideo *v = self.pool[(NSUInteger)i];                             // a language turned off since goes too
-        if ((v.fetchedAt > 0 && now - v.fetchedAt > TKPlayURLMaxAge) || ![TKSettings allowsLanguage:v.lang])
+        if ((v.fetchedAt > 0 && now - v.fetchedAt > TKPlayURLMaxAge) || ![TKSettings allowsLanguage:v.lang] || ![TKSettings allowsPost:[v toJSON]])
             [self.pool removeObjectAtIndex:(NSUInteger)i];
     }
     if (!self.pool.count) return nil;

@@ -95,6 +95,26 @@ int TKRunDirectParserTests(void)
         for (NSUInteger i=0;i<250;i++) [many addObject:@{@"id":[NSString stringWithFormat:@"%lu",(unsigned long)i]}];
         check([TKVideoLibrary addingVideo:first toList:many limit:200].count == 200, "history limit bounds storage");
         check([TKVideoLibrary videos:@[[NSNull null],first] matching:@"fixture"].count == 1, "malformed filtered record ignored");
+        check([[TKVideoLibrary normalizedHandle:@" @Fixture.Name \n"] isEqual:@"fixture.name"], "creator handle normalized");
+        check([[TKVideoLibrary normalizedHandle:@"@ТЕСТ"] isEqual:@"тест"], "Unicode creator handle supported");
+        check(![TKVideoLibrary normalizedHandle:@"https://tiktok.com/@fixture"], "URL cannot become a creator handle");
+        check(![TKVideoLibrary normalizedHandle:@"bad/name"], "creator path separators rejected");
+        check(![TKVideoLibrary normalizedHandle:@"  "], "empty creator handle rejected");
+        check([TKVideoLibrary video:first blockedByCreators:@[@"fixture"] keywords:@[] hidePhotos:NO maxDuration:0], "hidden creator excluded case insensitively");
+        check(![TKVideoLibrary video:first blockedByCreators:@[@"someone"] keywords:@[] hidePhotos:NO maxDuration:0], "other creators remain available");
+        check([TKVideoLibrary video:first blockedByCreators:@[] keywords:@[@"CESKY"] hidePhotos:NO maxDuration:0], "caption filter ignores case and accents");
+        check([TKVideoLibrary video:first blockedByCreators:@[] keywords:@[@"song"] hidePhotos:NO maxDuration:0], "sound keyword filter");
+        check([TKVideoLibrary video:first blockedByCreators:@[] keywords:@[@"kocka"] hidePhotos:NO maxDuration:0], "hashtag keyword filter");
+        check(![TKVideoLibrary video:first blockedByCreators:@[] keywords:@[@"",@"absent"] hidePhotos:NO maxDuration:0], "empty or absent keywords do not hide posts");
+        check([TKVideoLibrary video:@{@"type":@"photo"} blockedByCreators:@[] keywords:@[] hidePhotos:YES maxDuration:0], "photo filter excludes slideshows");
+        check(![TKVideoLibrary video:@{@"type":@"photo"} blockedByCreators:@[] keywords:@[] hidePhotos:NO maxDuration:0], "photo filter can be disabled");
+        check([TKVideoLibrary video:@{@"duration":@61} blockedByCreators:@[] keywords:@[] hidePhotos:NO maxDuration:60], "long video excluded");
+        check(![TKVideoLibrary video:@{@"duration":@60} blockedByCreators:@[] keywords:@[] hidePhotos:NO maxDuration:60], "duration limit boundary included");
+        check(![TKVideoLibrary video:@{@"duration":@1000} blockedByCreators:@[] keywords:@[] hidePhotos:NO maxDuration:0], "unlimited duration supported");
+        check([[TKVideoLibrary collectionName:@"  Česká kolekce  "] isEqual:@"Česká kolekce"], "collection name trimmed with Unicode retained");
+        check(![TKVideoLibrary collectionName:@"\n"], "empty collection rejected");
+        check(![TKVideoLibrary collectionName:@"bad\nname"], "collection control characters rejected");
+        check(![TKVideoLibrary collectionName:[@"x" stringByPaddingToLength:61 withString:@"x" startingAtIndex:0]], "overlong collection name rejected");
         fprintf(stdout,"Direct parser and library: %u checks, %u failures\n",checks,failures);
     }
     return failures ? 1 : 0;

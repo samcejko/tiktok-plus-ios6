@@ -10,6 +10,7 @@
 #import "TKTheme.h"
 #import "TKUtils.h"
 #import "TKCommon.h"
+#import "TKActionSheet.h"
 
 // A comment shows at most this many lines (some are walls of emoji that would fill the whole sheet)
 static const NSInteger TKCommentMaxLines = 8;
@@ -340,6 +341,12 @@ static UILabel *TKCommentSizingLabel(void)
         } else {
             [self loadRepliesOf:row[@"more"]];
         }
+    } else if([row isKindOfClass:[TKComment class]]) {
+        TKComment *comment=row;
+        [TKActionSheet options:@[L(@"Read full comment"),L(@"Copy comment")] title:L(@"Comment") inView:self.view selection:^(NSInteger i){
+            if(i==0)[TKUtils alertWithTitle:[self nameOf:comment] message:comment.text];
+            else [UIPasteboard generalPasteboard].string=comment.text;
+        }];
     }
 }
 
